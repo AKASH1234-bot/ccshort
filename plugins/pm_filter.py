@@ -9,7 +9,7 @@ from Script import script
 import pyrogram
 from database.connections_mdb import active_connection, all_connections, delete_connection, if_active, make_active, \
     make_inactive
-from info import ADMINS, AUTH_CHANNEL, AUTH_USERS, CUSTOM_FILE_CAPTION, AUTH_GROUPS, P_TTI_SHOW_OFF, IMDB, \
+from info import ADMINS, REQ_CHANNEL_1, REQ_CHANNEL_2, AUTH_CHANNEL, AUTH_USERS, CUSTOM_FILE_CAPTION, AUTH_GROUPS, P_TTI_SHOW_OFF, IMDB, \
     SINGLE_BUTTON, SPELL_CHECK_REPLY, IMDB_TEMPLATE, LOG_CHANNEL, URL_SHORTENR_WEBSITE, URL_SHORTNER_WEBSITE_API
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram import Client, filters, enums
@@ -67,8 +67,7 @@ async def next_page(bot, query):
         btn = [
             [
                 InlineKeyboardButton(
-                    text=f"📁 [{get_size(file.file_size)}] {file.file_name}", 
-                    url=await get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
+                    text=f"📂 [{get_size(file.file_size)}] 👉 {file.file_name}", callback_data=f'files#{file.file_id}'
                 ),
             ]
             for file in files
@@ -140,8 +139,9 @@ async def advantage_spoll_choker(bot, query):
         await auto_filter(bot, query, k)
     else:
         await bot.send_message(LOG_CHANNEL, script.NO_RESULT_TXT.format(query.message.chat.title, query.message.chat.id, query.from_user.mention, search))
-        k = await query.message.edit(f"👋 Hello {query.from_user.mention},\n\n <b>I couldn't find </b><b>'{search}'</b><b> in my Database</b> \n \n <b> Maybe Not Yet Released In OTT Platforms ⚠️</b>")
-        await asyncio.sleep(10)
+        k = await query.message.edit(f"\n👋 Hello {query.from_user.mention},\n\n <b> Your Movie: </b><b>'{search}'</b><b> \n \n Will Be Uploaded Here 👇 Join Now </b>",
+                                  reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⭕ Join Here ⭕", url=SPELL_LNK)]]))
+        await asyncio.sleep(30)
         await k.delete()
         try:
             await query.message.reply_to_message.delete()
@@ -383,7 +383,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
             await query.answer(url=f"https://t.me/{temp.U_NAME}?start={ident}_{file_id}")
     elif query.data.startswith("checksub"):
         if AUTH_CHANNEL and not await is_subscribed(client, query):
-            await query.answer("I Like Your Smartness, But Don't Be Oversmart 😒", show_alert=True)
+            await query.answer("Join Both Channels & Then Click Get File 😒", show_alert=True)
             return
         ident, file_id = query.data.split("#")
         files_ = await get_file_details(file_id)
@@ -654,11 +654,10 @@ async def auto_filter(client, msg, spoll=False):
         btn = [
             [
                 InlineKeyboardButton(
-                    text=f"📁 [{get_size(file.file_size)}] {file.file_name}", 
-                    url=await get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
+                    text=f"📂[{get_size(file.file_size)}]🌟{file.file_name}", callback_data=f'{pre}#{file.file_id}'
                 ),
             ]
-            for file in files
+            for file in files 
         ]
     
     else:
