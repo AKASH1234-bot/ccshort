@@ -1,6 +1,6 @@
 import logging
 from pyrogram.errors import InputUserDeactivated, UserNotParticipant, FloodWait, UserIsBlocked, PeerIdInvalid
-from info import AUTH_CHANNEL, ADMINS, LONG_IMDB_DESCRIPTION, MAX_LIST_ELM, URL_SHORTENR_WEBSITE, URL_SHORTNER_WEBSITE_API
+from info import AUTH_CHANNEL, REQ_CHANNEL_1, REQ_CHANNEL_2, ADMINS, LONG_IMDB_DESCRIPTION, MAX_LIST_ELM, URL_SHORTENR_WEBSITE, URL_SHORTNER_WEBSITE_API
 from imdb import Cinemagoer
 import asyncio
 from pyrogram.types import Message, InlineKeyboardButton
@@ -45,18 +45,22 @@ class temp(object):
     USERS_CANCEL = False
     GROUPS_CANCEL = False
 
-async def is_subscribed(bot, query):
-    if not (AUTH_CHANNEL or REQ_CHANNEL):
+async def is_subscribed(bot: Client, query):
+    if not (AUTH_CHANNEL or REQ_CHANNEL_1 or REQ_CHANNEL_2):
         return True
     elif query.from_user.id in ADMINS:
         return True
 
     if db2().isActive():
-        user = await db2().get_user(query.from_user.id)
-        if user:
-            return True
-        else:
-            return False
+        user_channel_1 = await db2().get_user(query.from_user.id, channel=1)
+        user_channel_2 = await db2().get_user(query.from_user.id, channel=2)
+    
+    if user_channel_1 and user_channel_2:
+        return True
+    else:
+        return False
+
+
     try:
         user = await bot.get_chat_member(AUTH_CHANNEL, query.from_user.id)
     except UserNotParticipant:
@@ -69,6 +73,7 @@ async def is_subscribed(bot, query):
             return True
         else:
             return False
+
 
 async def get_poster(query, bulk=False, id=False, file=None):
     if not id:
