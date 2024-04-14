@@ -9,11 +9,11 @@ gunicorn==20.1.0
 umongo==3.0.1
 requests
 render
-Flask==1.1.2
+Flask==2.2.5
 bs4
 heroku3
 pynewtonmath
 pytz
-aiohttp
-jinja2
-escape
+aiohttp==3.7.4.post0
+wheel
+
