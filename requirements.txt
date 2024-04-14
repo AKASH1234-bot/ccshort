@@ -15,3 +15,4 @@ heroku3
 pynewtonmath
 pytz
 aiohttp
+jinja2
