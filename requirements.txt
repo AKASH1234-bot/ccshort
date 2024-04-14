@@ -16,3 +16,4 @@ pynewtonmath
 pytz
 aiohttp
 jinja2
+escape
