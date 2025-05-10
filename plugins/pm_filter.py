@@ -89,7 +89,7 @@ async def next_page(bot, query):
         ]
     btn.insert(0,
         [
-            InlineKeyboardButton(text="⚡ʜᴏᴡ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ⚡", url='https://t.me/ccl_links/34')
+            InlineKeyboardButton(text="⚡ʜᴏᴡ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ⚡", url='https://t.me/ccllinks/3')
         ]
     )
     if 0 < offset <= 10:
@@ -418,7 +418,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
         ], [
             InlineKeyboardButton('⚜️ Join Movie Request Group ⚜️', url= 'https://t.me/+AngJ8lGmH4wwNWY1')],
         [
-            InlineKeyboardButton('🎬 Join Movie Updates Channel 🎬', url='https://t.me/ccl_links')
+            InlineKeyboardButton('🎬 Join Movie Updates Channel 🎬', url='https://t.me/ccllinks')
         ], 
         ]
             
