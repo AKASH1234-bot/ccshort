@@ -45,13 +45,18 @@ def _caption(files):
     return cap or title or ''
 
 
-def _file_btns(files, settings):
+async def _file_btns(files, settings):
     pre = 'filep' if settings['file_secure'] else 'file'
     if settings['button']:
-        return [[InlineKeyboardButton(
-            f"📁 [{get_size(f.file_size)}] {f.file_name}",
-            url=f"https://telegram.dog/{temp.U_NAME}?start=files_{f.file_id}"
-        )] for f in files]
+        btns = []
+        for f in files:
+            # Wrap through safelink website
+            safelink = await get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{f.file_id}")
+            btns.append([InlineKeyboardButton(
+                f"📁 [{get_size(f.file_size)}] {f.file_name}",
+                url=safelink
+            )])
+        return btns
     return [[
         InlineKeyboardButton(f.file_name,        callback_data=f'{pre}#{f.file_id}'),
         InlineKeyboardButton(get_size(f.file_size), callback_data=f'{pre}#{f.file_id}'),
@@ -81,7 +86,7 @@ async def next_page(bot, query):
     except: n_offset = 0
     if not files: return
     settings = await get_settings(query.message.chat.id)
-    btn = _file_btns(files, settings)
+    btn = await _file_btns(files, settings)
     off_set = 0 if 0 < offset <= 10 else (None if offset == 0 else offset - 10)
     page = f"🗓 {math.ceil(offset/10)+1}/{math.ceil(total/10)}"
     if n_offset == 0:
@@ -344,7 +349,7 @@ async def auto_filter(client, msg, spoll=False):
         search, files, offset, total_results = spoll
         await msg.message.delete()
 
-    btn = _file_btns(files, settings)
+    btn = await _file_btns(files, settings)
 
     # How to Download button at top
     btn.insert(0, [InlineKeyboardButton("⚡ HOW TO DOWNLOAD ⚡", url='https://t.me/ccllinks/3')])
