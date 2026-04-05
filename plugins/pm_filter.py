@@ -345,6 +345,10 @@ async def auto_filter(client, msg, spoll=False):
         await msg.message.delete()
 
     btn = _file_btns(files, settings)
+
+    # How to Download button at top
+    btn.insert(0, [InlineKeyboardButton("⚡ HOW TO DOWNLOAD ⚡", url='https://t.me/ccllinks/3')])
+
     if offset != "":
         key = f"{message.chat.id}-{message.id}"
         BUTTONS[key] = search
@@ -355,6 +359,13 @@ async def auto_filter(client, msg, spoll=False):
         ])
     else:
         btn.append([InlineKeyboardButton("🗓 1/1", callback_data="pages")])
+
+    # Channel buttons at bottom
+    btn.append([
+        InlineKeyboardButton("🎬 Movie Search",  url="https://t.me/+AngJ8lGmH4wwNWY1"),
+        InlineKeyboardButton("📢 Movie Updates", url="https://t.me/cinemaclubnew"),
+    ])
+    btn.append([InlineKeyboardButton("📰 Movie News", url="https://t.me/ccl_news")])
 
     imdb = await get_poster(search, file=files[0].file_name) if settings["imdb"] else None
     if imdb:
@@ -375,9 +386,9 @@ async def auto_filter(client, msg, spoll=False):
                 **locals()
             )
         except Exception:
-            cap = f"<b>Results for: {search}</b>"
+            cap = f"<b>┏ 👑 ASKED BY : {message.from_user.mention} \n┗ 🧡 JOIN : 🔗 @cinemaclubnew  \n \n🌩 POWERED BY \n🔗 @cinemaclubnew1 </b>\n\n<b>Here is What I Found In My Database For Your Query {search}.</b>"
     else:
-        cap = f"<b>Results for: {search}</b>"
+        cap = f"<b>┏ 👑 ASKED BY : {message.from_user.mention} \n┗ 🧡 JOIN : 🔗 @cinemaclubnew  \n \n🌩 POWERED BY \n🔗 @cinemaclubnew1 </b>\n\n<b>Here is What I Found In My Database For Your Query {search}.</b>"
 
     markup = InlineKeyboardMarkup(btn)
     if imdb and imdb.get('poster'):
