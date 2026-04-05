@@ -395,19 +395,19 @@ def humanbytes(size):
 
 async def get_shortlink(link):
     """
-    Saves link to WordPress safelink plugin via REST API and returns
-    the safelink URL in format: https://theplotlinee.link/?fsl=CODE
+    Saves link to WordPress Plotline Safelink plugin and returns ?fsl=CODE URL.
 
-    Set these env vars:
-      SAFELINK_BASE = https://theplotlinee.link
-      SAFELINK_API_KEY = your_secret_key  (set same key in WP plugin settings)
+    Required env vars:
+      SAFELINK_BASE    = https://theplotlinee.link
+      SAFELINK_API_KEY = your_secret_key (same as set in WP plugin settings)
 
     If not set, returns original link unchanged.
     """
     import aiohttp
+    from os import environ
 
-    base = os.environ.get("SAFELINK_BASE", "").strip().rstrip("/")
-    api_key = os.environ.get("SAFELINK_API_KEY", "").strip()
+    base    = environ.get("SAFELINK_BASE", "").strip().rstrip("/")
+    api_key = environ.get("SAFELINK_API_KEY", "").strip()
 
     if not base:
         return link
@@ -419,11 +419,7 @@ async def get_shortlink(link):
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{base}/wp-admin/admin-ajax.php",
-                data={
-                    "action": "fsl_bot_save",
-                    "url": link,
-                    "key": api_key,
-                },
+                data={"action": "fsl_bot_save", "url": link, "key": api_key},
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as resp:
                 data = await resp.json(content_type=None)
@@ -432,5 +428,4 @@ async def get_shortlink(link):
     except Exception as e:
         logger.warning(f"Safelink API error: {e}")
 
-    # Fallback: return original link
     return link
