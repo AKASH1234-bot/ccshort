@@ -394,25 +394,31 @@ def humanbytes(size):
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
 async def get_shortlink(link):
-    https = link.split(":")[0]
-    if "http" == https:
-        https = "https"
-        link = link.replace("http", https)
-    url = f'https://ccshort.in/api'
-    params = {'api': URL_SHORTNER_WEBSITE_API,
-              'url': link,
-              }
+    """
+    Wraps any link through your WordPress safelink page.
+    User lands on YOUR website (sees your AdSense ads) then gets redirected.
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, raise_for_status=True, ssl=False) as response:
-                data = await response.json()
-                if data["status"] == "success":
-                    return data['shortenedUrl']
-                else:
-                    logger.error(f"Error: {data['message']}")
-                    return f'https://{URL_SHORTENR_WEBSITE}/api?api={URL_SHORTNER_WEBSITE_API}&link={link}'
+    Set SAFELINK_PAGE in your environment variables:
+      SAFELINK_PAGE = https://yourdomain.com/go
 
-    except Exception as e:
-        logger.error(e)
-        return f'{URL_SHORTENR_WEBSITE}/api?api={URL_SHORTNER_WEBSITE_API}&link={link}'
+    If not set, returns the original link unchanged (safe fallback).
+    """
+    import base64
+    from os import environ
+
+    safelink_page = environ.get("SAFELINK_PAGE", "").strip()
+
+    # Fallback: if SAFELINK_PAGE not set, return original link
+    if not safelink_page:
+        logger.warning("SAFELINK_PAGE not set. Returning original link.")
+        return link
+
+    # Ensure https
+    if link.startswith("http://"):
+        link = "https://" + link[7:]
+
+    # Encode destination URL as base64
+    encoded = base64.b64encode(link.encode()).decode()
+
+    # Return: https://yourdomain.com/go?url=BASE64_ENCODED_LINK
+    return f"{safelink_page}?url={encoded}"
