@@ -48,17 +48,17 @@ def _caption(files):
 async def _file_btns(files, settings):
     pre = 'filep' if settings['file_secure'] else 'file'
     if settings['button']:
-        btns = []
-        for f in files:
-            # Wrap through safelink website
-            safelink = await get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{f.file_id}")
-            btns.append([InlineKeyboardButton(
-                f"📁 [{get_size(f.file_size)}] {f.file_name}",
-                url=safelink
-            )])
-        return btns
+        # ⚡ All shortlinks fetched simultaneously instead of one by one
+        safelinks = await asyncio.gather(*[
+            get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{f.file_id}")
+            for f in files
+        ])
+        return [[InlineKeyboardButton(
+            f"📁 [{get_size(f.file_size)}] {f.file_name}",
+            url=safelink
+        )] for f, safelink in zip(files, safelinks)]
     return [[
-        InlineKeyboardButton(f.file_name,        callback_data=f'{pre}#{f.file_id}'),
+        InlineKeyboardButton(f.file_name,           callback_data=f'{pre}#{f.file_id}'),
         InlineKeyboardButton(get_size(f.file_size), callback_data=f'{pre}#{f.file_id}'),
     ] for f in files]
 
@@ -364,6 +364,13 @@ async def auto_filter(client, msg, spoll=False):
         ])
     else:
         btn.append([InlineKeyboardButton("🗓 1/1", callback_data="pages")])
+
+    # Channel buttons at bottom of search results
+    btn.append([
+        InlineKeyboardButton("🎬 Movie Search",  url="https://t.me/+AngJ8lGmH4wwNWY1"),
+        InlineKeyboardButton("📢 Movie Updates", url="https://t.me/cinemaclubnew"),
+    ])
+    btn.append([InlineKeyboardButton("📰 Movie News", url="https://t.me/ccl_news")])
 
     imdb = await get_poster(search, file=files[0].file_name) if settings["imdb"] else None
     if imdb:
