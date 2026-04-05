@@ -394,31 +394,12 @@ def humanbytes(size):
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
 async def get_shortlink(link):
-    """
-    Wraps any link through your WordPress safelink page.
-    User lands on YOUR website (sees your AdSense ads) then gets redirected.
-
-    Set SAFELINK_PAGE in your environment variables:
-      SAFELINK_PAGE = https://yourdomain.com/go
-
-    If not set, returns the original link unchanged (safe fallback).
-    """
+    """Instant safelink — pure base64, zero HTTP calls, zero latency."""
     import base64
-    from os import environ
-
-    safelink_page = environ.get("SAFELINK_PAGE", "").strip()
-
-    # Fallback: if SAFELINK_PAGE not set, return original link
+    safelink_page = os.environ.get("SAFELINK_PAGE", "").strip()
     if not safelink_page:
-        logger.warning("SAFELINK_PAGE not set. Returning original link.")
         return link
-
-    # Ensure https
     if link.startswith("http://"):
         link = "https://" + link[7:]
-
-    # Encode destination URL as base64
     encoded = base64.b64encode(link.encode()).decode()
-
-    # Return: https://yourdomain.com/go?url=BASE64_ENCODED_LINK
     return f"{safelink_page}?url={encoded}"
