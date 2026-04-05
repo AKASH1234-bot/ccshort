@@ -167,10 +167,10 @@ async def start(client, message):
                     file_name = getattr(media, 'file_name', '')
                     f_caption = getattr(msg, 'caption', file_name)
                 try:
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True)
+                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
                 except FloodWait as e:
                     await asyncio.sleep(e.x)
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True)
+                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
                 except Exception as e:
                     logger.exception(e)
                     continue
@@ -178,10 +178,10 @@ async def start(client, message):
                 continue
             else:
                 try:
-                    await msg.copy(message.chat.id, protect_content=True)
+                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
                 except FloodWait as e:
                     await asyncio.sleep(e.x)
-                    await msg.copy(message.chat.id, protect_content=True)
+                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
                 except Exception as e:
                     logger.exception(e)
                     continue
@@ -196,7 +196,7 @@ async def start(client, message):
             msg = await client.send_cached_media(
                 chat_id=message.from_user.id,
                 file_id=file_id,
-                protect_content=True  # 🔐 always protect,
+                protect_content=True if pre == 'filep' else False,
                 )
             filetype = msg.media
             file = getattr(msg, filetype.value)
@@ -225,11 +225,22 @@ async def start(client, message):
             f_caption=f_caption
     if f_caption is None:
         f_caption = f"{files.file_name}"
+    from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    file_buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🎬 Movie Search", url="https://t.me/+AngJ8lGmH4wwNWY1"),
+            InlineKeyboardButton("📢 Movie Updates", url="https://t.me/cinemaclubnew"),
+        ],
+        [
+            InlineKeyboardButton("📰 Movie News", url="https://t.me/ccl_news"),
+        ],
+    ])
     await client.send_cached_media(
         chat_id=message.from_user.id,
         file_id=file_id,
         caption=f_caption,
-        protect_content=True  # 🔐 always protect,
+        protect_content=True if pre == 'filep' else False,
+        reply_markup=file_buttons,
         )
                     
 
