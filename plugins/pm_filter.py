@@ -365,13 +365,6 @@ async def auto_filter(client, msg, spoll=False):
     else:
         btn.append([InlineKeyboardButton("🗓 1/1", callback_data="pages")])
 
-    # Channel buttons at bottom
-    btn.append([
-        InlineKeyboardButton("🎬 Movie Search",  url="https://t.me/+AngJ8lGmH4wwNWY1"),
-        InlineKeyboardButton("📢 Movie Updates", url="https://t.me/cinemaclubnew"),
-    ])
-    btn.append([InlineKeyboardButton("📰 Movie News", url="https://t.me/ccl_news")])
-
     imdb = await get_poster(search, file=files[0].file_name) if settings["imdb"] else None
     if imdb:
         try:
