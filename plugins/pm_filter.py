@@ -63,12 +63,12 @@ async def next_page(bot, query):
     if not files:
         return
     settings = await get_settings(query.message.chat.id)
+    # ⚡ Always use safelink URL buttons
+    links = await asyncio.gather(*[
+        get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
+        for file in files
+    ])
     if settings['button']:
-        # ⚡ Parallel shortlink generation
-        links = await asyncio.gather(*[
-            get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
-            for file in files
-        ])
         btn = [
             [InlineKeyboardButton(
                 text=f"📁 [{get_size(file.file_size)}] {file.file_name}",
@@ -80,14 +80,15 @@ async def next_page(bot, query):
         btn = [
             [
                 InlineKeyboardButton(
-                    text=f"{file.file_name}", callback_data=f'files#{file.file_id}'
+                    text=f"🎬 {file.file_name}",
+                    url=link
                 ),
                 InlineKeyboardButton(
-                    text=f"{get_size(file.file_size)}",
-                    callback_data=f'files_#{file.file_id}',
+                    text=f"📦 {get_size(file.file_size)}",
+                    url=link
                 ),
             ]
-            for file in files
+            for file, link in zip(files, links)
         ]
     btn.insert(0,
         [
@@ -652,12 +653,12 @@ async def auto_filter(client, msg, spoll=False):
     if spoll:
         await msg.message.delete()   
     pre = 'filep' if settings['file_secure'] else 'file'
+    # ⚡ Always use safelink URL buttons — drives traffic to your website
+    links = await asyncio.gather(*[
+        get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
+        for file in files
+    ])
     if settings["button"]:
-        # ⚡ Build all shortlinks in parallel — much faster than serial awaits
-        links = await asyncio.gather(*[
-            get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
-            for file in files
-        ])
         btn = [
             [InlineKeyboardButton(
                 text=f"📁 [{get_size(file.file_size)}] {file.file_name}",
@@ -669,15 +670,15 @@ async def auto_filter(client, msg, spoll=False):
         btn = [
             [
                 InlineKeyboardButton(
-                    text=f"{file.file_name}",
-                    callback_data=f'{pre}#{file.file_id}',
+                    text=f"🎬 {file.file_name}",
+                    url=link
                 ),
                 InlineKeyboardButton(
-                    text=f"{get_size(file.file_size)}",
-                    callback_data=f'{pre}#{file.file_id}',
+                    text=f"📦 {get_size(file.file_size)}",
+                    url=link
                 ),
             ]
-            for file in files
+            for file, link in zip(files, links)
         ]
     btn.insert(0,
         [
