@@ -101,8 +101,8 @@ async def get_search_results(query, file_type=None, max_results=10, offset=0, fi
         next_offset = ''
 
     cursor = Media.find(filter)
-    # Sort by recent
-    cursor.sort('$natural', -1)
+    # Sort ascending by file name
+    cursor.sort('file_name', 1)
     # Slice files according to offset and max results
     cursor.skip(offset).limit(max_results)
     # Get list of files
