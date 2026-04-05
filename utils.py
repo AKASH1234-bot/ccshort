@@ -26,8 +26,8 @@ BTN_URL_REGEX = re.compile(
 imdb = Cinemagoer()
 
 BANNED = {}
-SMART_OPEN = '“'
-SMART_CLOSE = '”'
+SMART_OPEN = '\u201c'
+SMART_CLOSE = '\u201d'
 START_CHAR = ('\'', '"', SMART_OPEN)
 
 # temp db for banned 
@@ -72,7 +72,6 @@ async def is_subscribed(bot, query):
 
 async def get_poster(query, bulk=False, id=False, file=None):
     if not id:
-        # https://t.me/GetTGLink/4183
         query = (query.strip()).lower()
         title = query
         year = re.findall(r'[1-2]\d{3}$', query, re.IGNORECASE)
@@ -136,7 +135,7 @@ async def get_poster(query, bulk=False, id=False, file=None):
         "director": list_to_str(movie.get("director")),
         "writer":list_to_str(movie.get("writer")),
         "producer":list_to_str(movie.get("producer")),
-        "composer":list_to_str(movie.get("composer")) ,
+        "composer":list_to_str(movie.get("composer")),
         "cinematographer":list_to_str(movie.get("cinematographer")),
         "music_team": list_to_str(movie.get("music department")),
         "distributors": list_to_str(movie.get("distributors")),
@@ -148,7 +147,6 @@ async def get_poster(query, bulk=False, id=False, file=None):
         'rating': str(movie.get("rating")),
         'url':f'https://www.imdb.com/title/tt{movieid}'
     }
-# https://github.com/odysseusmax/animated-lamp/blob/2ef4730eb2b5f0596ed6d03e7b05243d93e3415b/bot/utils/broadcast.py#L37
 
 async def broadcast_messages(user_id, message):
     try:
@@ -181,7 +179,7 @@ async def search_gagala(text):
     response = requests.get(url, headers=usr_agent)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, 'html.parser')
-    titles = soup.find_all( 'h3' )
+    titles = soup.find_all('h3')
     return [title.getText() for title in titles]
 
 
@@ -200,7 +198,6 @@ async def save_group_settings(group_id, key, value):
     
 def get_size(size):
     """Get size in readable format"""
-
     units = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB"]
     size = float(size)
     i = 0
@@ -232,7 +229,6 @@ def get_file_id(msg: Message):
 
 def extract_user(message: Message) -> Union[int, str]:
     """extracts the user from a message"""
-    # https://github.com/SpEcHiDe/PyroGramBot/blob/f30e2cca12002121bad1982f68cd0ff9814ce027/pyrobot/helper_functions/extract_user.py#L7
     user_id = None
     user_first_name = None
     if message.reply_to_message:
@@ -244,13 +240,11 @@ def extract_user(message: Message) -> Union[int, str]:
             len(message.entities) > 1 and
             message.entities[1].type == enums.MessageEntityType.TEXT_MENTION
         ):
-           
             required_entity = message.entities[1]
             user_id = required_entity.user.id
             user_first_name = required_entity.user.first_name
         else:
             user_id = message.command[1]
-            # don't want to make a request -_-
             user_first_name = user_id
         try:
             user_id = int(user_id)
@@ -294,7 +288,7 @@ def last_online(from_user):
 def split_quotes(text: str) -> List:
     if not any(text.startswith(char) for char in START_CHAR):
         return text.split(None, 1)
-    counter = 1  # ignore first char -> is some kind of quote
+    counter = 1
     while counter < len(text):
         if text[counter] == "\\":
             counter += 1
@@ -304,9 +298,7 @@ def split_quotes(text: str) -> List:
     else:
         return text.split(None, 1)
 
-    # 1 to avoid starting quote, and counter is exclusive so avoids ending
     key = remove_escapes(text[1:counter].strip())
-    # index will be in range, or `else` would have been executed and returned
     rest = text[counter + 1:].strip()
     if not key:
         key = text[0] + text[0]
@@ -321,19 +313,16 @@ def parser(text, keyword):
     i = 0
     alerts = []
     for match in BTN_URL_REGEX.finditer(text):
-        # Check if btnurl is escaped
         n_escapes = 0
         to_check = match.start(1) - 1
         while to_check > 0 and text[to_check] == "\\":
             n_escapes += 1
             to_check -= 1
 
-        # if even, not escaped -> create button
         if n_escapes % 2 == 0:
             note_data += text[prev:match.start(1)]
             prev = match.end(1)
             if match.group(3) == "buttonalert":
-                # create a thruple with button label, url, and newline status
                 if bool(match.group(5)) and buttons:
                     buttons[-1].append(InlineKeyboardButton(
                         text=match.group(2),
@@ -356,7 +345,6 @@ def parser(text, keyword):
                     text=match.group(2),
                     url=match.group(4).replace(" ", "")
                 )])
-
         else:
             note_data += text[prev:to_check]
             prev = match.start(1) - 1
@@ -393,23 +381,25 @@ def humanbytes(size):
         n += 1
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
+
+# ── Safelink shortener ─────────────────────────────────────────────
+# Caches failed state to avoid hammering a broken API on every request
+_SAFELINK_FAILED = False
+
 async def get_shortlink(link):
     """
-    Saves link to WordPress Plotline Safelink plugin and returns ?fsl=CODE URL.
-
-    Required env vars:
-      SAFELINK_BASE    = https://theplotlinee.link
-      SAFELINK_API_KEY = your_secret_key (same as set in WP plugin settings)
-
-    If not set, returns original link unchanged.
+    Returns a safelink-wrapped URL.
+    - If SAFELINK_BASE env var is not set → returns original link immediately.
+    - If the API fails or times out → returns original link immediately
+      and marks the API as failed so future calls skip it (until restart).
     """
-    import aiohttp
-    from os import environ
+    global _SAFELINK_FAILED
 
-    base    = environ.get("SAFELINK_BASE", "").strip().rstrip("/")
-    api_key = environ.get("SAFELINK_API_KEY", "").strip()
+    base    = os.environ.get("SAFELINK_BASE", "").strip().rstrip("/")
+    api_key = os.environ.get("SAFELINK_API_KEY", "").strip()
 
-    if not base:
+    # Skip if not configured or API already known to be down
+    if not base or _SAFELINK_FAILED:
         return link
 
     if link.startswith("http://"):
@@ -420,12 +410,23 @@ async def get_shortlink(link):
             async with session.post(
                 f"{base}/wp-admin/admin-ajax.php",
                 data={"action": "fsl_bot_save", "url": link, "key": api_key},
-                timeout=aiohttp.ClientTimeout(total=5)
+                timeout=aiohttp.ClientTimeout(total=3),  # ⚡ 3 sec max, was 5
             ) as resp:
-                data = await resp.json(content_type=None)
+                text = await resp.text()
+                if not text.strip():
+                    # Empty response — API is broken, skip all future calls
+                    logger.warning("Safelink API returned empty response — disabling shortlink for this session.")
+                    _SAFELINK_FAILED = True
+                    return link
+                import json
+                data = json.loads(text)
                 if data.get("success") and data.get("data", {}).get("url"):
                     return data["data"]["url"]
+    except asyncio.TimeoutError:
+        logger.warning("Safelink API timed out — returning original link.")
+        _SAFELINK_FAILED = True
     except Exception as e:
         logger.warning(f"Safelink API error: {e}")
+        _SAFELINK_FAILED = True
 
     return link
