@@ -25,11 +25,11 @@ ADMINS = [int(admin) if id_pattern.search(admin) else admin for admin in environ
 CHANNELS = [int(ch) if id_pattern.search(ch) else ch for ch in environ.get('CHANNELS', '-1001642260702 -1001591302937 -1001699721730 -1001663686263').split()]
 auth_users = [int(user) if id_pattern.search(user) else user for user in environ.get('AUTH_USERS', '').split()]
 AUTH_USERS = (auth_users + ADMINS) if auth_users else []
-auth_channel = environ.get('AUTH_CHANNEL', '-1002530775466')
+auth_channel = environ.get('AUTH_CHANNEL', '')
 auth_grp = environ.get('AUTH_GROUP')
 AUTH_CHANNEL = int(auth_channel) if auth_channel and id_pattern.search(auth_channel) else None
 AUTH_GROUPS = [int(ch) for ch in auth_grp.split()] if auth_grp else None
-REQ_CHANNEL = environ.get("REQ_CHANNEL", '-1002267315059')
+REQ_CHANNEL = environ.get("REQ_CHANNEL", '')
 REQ_CHANNEL = int(REQ_CHANNEL) if REQ_CHANNEL and id_pattern.search(REQ_CHANNEL) else False
 
 #Port
@@ -70,15 +70,8 @@ LOG_STR += (f"MAX_LIST_ELM Found, long list will be shortened to first {MAX_LIST
 LOG_STR += f"Your current IMDB template is {IMDB_TEMPLATE}"
 
 ## EXTRA FEATURES ##
+    
+      # URL Shortener #
 
-      # Safelink (your WordPress site) #
-# Set this to your WordPress safelink page, e.g. https://yourdomain.com/go
-SAFELINK_PAGE = environ.get('SAFELINK_PAGE', '')
-
-      # Auto-delete sent files (copyright protection) #
-# Files sent to users will be deleted after this many seconds (0 = disabled)
-AUTO_DELETE_TIME = int(environ.get('AUTO_DELETE_TIME', '300'))  # default 5 mins
-
-      # URL Shortener (legacy — not used if SAFELINK_PAGE is set) #
 URL_SHORTENR_WEBSITE = environ.get('URL_SHORTENR_WEBSITE', 'ccshort.in')
 URL_SHORTNER_WEBSITE_API = environ.get('URL_SHORTNER_WEBSITE_API', 'ec5a584c0578d6dc81fd6bc6a02ec9a0e96a67b3')
