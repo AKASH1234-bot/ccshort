@@ -167,10 +167,10 @@ async def start(client, message):
                     file_name = getattr(media, 'file_name', '')
                     f_caption = getattr(msg, 'caption', file_name)
                 try:
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
+                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True)
                 except FloodWait as e:
                     await asyncio.sleep(e.x)
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
+                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True)
                 except Exception as e:
                     logger.exception(e)
                     continue
@@ -178,10 +178,10 @@ async def start(client, message):
                 continue
             else:
                 try:
-                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
+                    await msg.copy(message.chat.id, protect_content=True)
                 except FloodWait as e:
                     await asyncio.sleep(e.x)
-                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
+                    await msg.copy(message.chat.id, protect_content=True)
                 except Exception as e:
                     logger.exception(e)
                     continue
@@ -196,7 +196,7 @@ async def start(client, message):
             msg = await client.send_cached_media(
                 chat_id=message.from_user.id,
                 file_id=file_id,
-                protect_content=True if pre == 'filep' else False,
+                protect_content=True  # 🔐 always protect,
                 )
             filetype = msg.media
             file = getattr(msg, filetype.value)
@@ -229,7 +229,7 @@ async def start(client, message):
         chat_id=message.from_user.id,
         file_id=file_id,
         caption=f_caption,
-        protect_content=True if pre == 'filep' else False,
+        protect_content=True  # 🔐 always protect,
         )
                     
 
