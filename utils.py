@@ -8,6 +8,7 @@ from pyrogram import enums
 from typing import Union
 import re
 import os
+import json
 from datetime import datetime
 from typing import List
 from database.users_chats_db import db
@@ -30,7 +31,6 @@ SMART_OPEN = '\u201c'
 SMART_CLOSE = '\u201d'
 START_CHAR = ('\'', '"', SMART_OPEN)
 
-# temp db for banned 
 class temp(object):
     BANNED_USERS = []
     BANNED_CHATS = []
@@ -50,7 +50,6 @@ async def is_subscribed(bot, query):
         return True
     elif query.from_user.id in ADMINS:
         return True
-
     if db2().isActive():
         user = await db2().get_user(query.from_user.id)
         if user:
@@ -117,7 +116,6 @@ async def get_poster(query, bulk=False, id=False, file=None):
         plot = movie.get('plot outline')
     if plot and len(plot) > 800:
         plot = plot[0:800] + "..."
-
     return {
         'title': movie.get('title'),
         'votes': movie.get('votes'),
@@ -182,7 +180,6 @@ async def search_gagala(text):
     titles = soup.find_all('h3')
     return [title.getText() for title in titles]
 
-
 async def get_settings(group_id):
     settings = temp.SETTINGS.get(group_id)
     if not settings:
@@ -197,7 +194,6 @@ async def save_group_settings(group_id, key, value):
     await db.update_settings(group_id, current)
 
 def get_size(size):
-    """Get size in readable format"""
     units = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB"]
     size = float(size)
     i = 0
@@ -213,14 +209,8 @@ def split_list(l, n):
 def get_file_id(msg: Message):
     if msg.media:
         for message_type in (
-            "photo",
-            "animation",
-            "audio",
-            "document",
-            "video",
-            "video_note",
-            "voice",
-            "sticker"
+            "photo", "animation", "audio", "document",
+            "video", "video_note", "voice", "sticker"
         ):
             obj = getattr(msg, message_type)
             if obj:
@@ -228,7 +218,6 @@ def get_file_id(msg: Message):
                 return obj
 
 def extract_user(message: Message) -> Union[int, str]:
-    """extracts the user from a message"""
     user_id = None
     user_first_name = None
     if message.reply_to_message:
@@ -377,41 +366,60 @@ def humanbytes(size):
 
 
 # ── URL Shortener ──────────────────────────────────────────────────
-# Uses ccshort.in API (URL_SHORTENR_WEBSITE + URL_SHORTNER_WEBSITE_API from info.py)
-# If API fails or times out, returns original link immediately — bot never hangs.
-
-_SHORTLINK_FAILED = False  # Once failed, skip for entire session
 
 async def get_shortlink(link):
-    global _SHORTLINK_FAILED
-
-    # If API already known to be down this session, skip instantly
-    if _SHORTLINK_FAILED:
-        return link
-
+    """
+    Shortens a link using URL_SHORTENR_WEBSITE API.
+    Supports both JSON response and plain text response formats.
+    Falls back to original link instantly if API is unavailable.
+    """
     if not URL_SHORTENR_WEBSITE or not URL_SHORTNER_WEBSITE_API:
         return link
 
     try:
-        url = f"https://{URL_SHORTENR_WEBSITE}/api?api={URL_SHORTNER_WEBSITE_API}&url={link}&format=text"
+        # Standard format used by most Indian Telegram bot shorteners
+        api_url = f"https://{URL_SHORTENR_WEBSITE}/api?api={URL_SHORTNER_WEBSITE_API}&url={link}"
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                url,
-                timeout=aiohttp.ClientTimeout(total=3),  # max 3 seconds
-                allow_redirects=False
+                api_url,
+                timeout=aiohttp.ClientTimeout(total=5),
+                headers={'User-Agent': 'Mozilla/5.0'}
             ) as resp:
                 text = (await resp.text()).strip()
-                if text and text.startswith("http"):
-                    return text
-                else:
-                    logger.warning(f"Shortlink API bad response: {text[:100]}")
-                    _SHORTLINK_FAILED = True
+
+                if not text:
+                    logger.warning("Shortlink API returned empty response.")
                     return link
+
+                # Try JSON format first ({"status":"success","shortenedUrl":"..."})
+                try:
+                    data = json.loads(text)
+                    # Format 1: {"status": "success", "shortenedUrl": "..."}
+                    if data.get("status") == "success" and data.get("shortenedUrl"):
+                        return data["shortenedUrl"]
+                    # Format 2: {"status": "success", "data": {"shortenedUrl": "..."}}  
+                    if data.get("status") == "success" and data.get("data", {}).get("shortenedUrl"):
+                        return data["data"]["shortenedUrl"]
+                    # Format 3: {"short_url": "..."}
+                    if data.get("short_url"):
+                        return data["short_url"]
+                    # Format 4: {"url": "..."}
+                    if data.get("url") and data["url"].startswith("http"):
+                        return data["url"]
+                except json.JSONDecodeError:
+                    pass
+
+                # Plain text format — just a URL returned directly
+                if text.startswith("http"):
+                    return text
+
+                logger.warning(f"Shortlink API unknown response: {text[:100]}")
+                return link
+
     except asyncio.TimeoutError:
-        logger.warning("Shortlink API timed out — using original links.")
-        _SHORTLINK_FAILED = True
+        logger.warning("Shortlink API timed out.")
         return link
     except Exception as e:
         logger.warning(f"Shortlink API error: {e}")
-        _SHORTLINK_FAILED = True
         return link
