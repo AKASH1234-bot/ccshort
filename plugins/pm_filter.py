@@ -230,7 +230,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 return await query.answer(url=f"https://t.me/{temp.U_NAME}?start={ident}_{file_id}")
             await client.send_cached_media(
                 chat_id=query.from_user.id, file_id=file_id,
-                caption=f_caption, protect_content=True  # forwarding disabled,
+                caption=f_caption, protect_content=True,
                 reply_markup=CHANNEL_BUTTONS)
             await query.answer('File sent to your PM!', show_alert=True)
         except UserIsBlocked:
@@ -248,7 +248,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
         await query.answer()
         await client.send_cached_media(
             chat_id=query.from_user.id, file_id=file_id,
-            caption=_caption(files_[0]), protect_content=True  # forwarding disabled,
+            caption=_caption(files_[0]), protect_content=True,
             reply_markup=CHANNEL_BUTTONS)
         return
 
