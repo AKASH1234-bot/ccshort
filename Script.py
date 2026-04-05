@@ -2,7 +2,9 @@ class script(object):
 
     START_TXT = """👋 Hello {},
 I'm <a href=https://t.me/{}>{}</a> — your personal movie file bot.
-Add me to your group and I'll find movies for you!"""
+Add me to your group and I'll find movies for you!
+
+🎬 Just type any movie name in the group."""
 
     HELP_TXT = """👋 Hey {}
 Here are my commands and features."""
@@ -76,3 +78,13 @@ No results found for <b>'{}'</b>.
 Try a different search term or check the spelling."""
 
     NO_RESULT_TXT = """No results in group {} ({}) — searched by {} for '{}'"""
+
+    LOG_TEXT_G = """#NewGroup
+Group: {}
+ID: {}
+Members: {}
+By: {}"""
+
+    LOG_TEXT_P = """#NewUser
+User ID: {}
+Name: {}"""
