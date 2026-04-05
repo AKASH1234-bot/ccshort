@@ -35,7 +35,7 @@ class temp(object):
     BANNED_USERS = []
     BANNED_CHATS = []
     ME = None
-    CURRENT=int(os.environ.get("SKIP", 2))
+    CURRENT = int(os.environ.get("SKIP", 2))
     CANCEL = False
     MELCOW = {}
     U_NAME = None
@@ -81,19 +81,19 @@ async def get_poster(query, bulk=False, id=False, file=None):
         elif file is not None:
             year = re.findall(r'[1-2]\d{3}', file, re.IGNORECASE)
             if year:
-                year = list_to_str(year[:1]) 
+                year = list_to_str(year[:1])
         else:
             year = None
         movieid = imdb.search_movie(title.lower(), results=10)
         if not movieid:
             return None
         if year:
-            filtered=list(filter(lambda k: str(k.get('year')) == str(year), movieid))
+            filtered = list(filter(lambda k: str(k.get('year')) == str(year), movieid))
             if not filtered:
                 filtered = movieid
         else:
             filtered = movieid
-        movieid=list(filter(lambda k: k.get('kind') in ['movie', 'tv series'], filtered))
+        movieid = list(filter(lambda k: k.get('kind') in ['movie', 'tv series'], filtered))
         if not movieid:
             movieid = filtered
         if bulk:
@@ -133,10 +133,10 @@ async def get_poster(query, bulk=False, id=False, file=None):
         "certificates": list_to_str(movie.get("certificates")),
         "languages": list_to_str(movie.get("languages")),
         "director": list_to_str(movie.get("director")),
-        "writer":list_to_str(movie.get("writer")),
-        "producer":list_to_str(movie.get("producer")),
-        "composer":list_to_str(movie.get("composer")),
-        "cinematographer":list_to_str(movie.get("cinematographer")),
+        "writer": list_to_str(movie.get("writer")),
+        "producer": list_to_str(movie.get("producer")),
+        "composer": list_to_str(movie.get("composer")),
+        "cinematographer": list_to_str(movie.get("cinematographer")),
         "music_team": list_to_str(movie.get("music department")),
         "distributors": list_to_str(movie.get("distributors")),
         'release_date': date,
@@ -145,7 +145,7 @@ async def get_poster(query, bulk=False, id=False, file=None):
         'poster': movie.get('full-size cover url'),
         'plot': plot,
         'rating': str(movie.get("rating")),
-        'url':f'https://www.imdb.com/title/tt{movieid}'
+        'url': f'https://www.imdb.com/title/tt{movieid}'
     }
 
 async def broadcast_messages(user_id, message):
@@ -173,7 +173,7 @@ async def search_gagala(text):
     usr_agent = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
         'Chrome/61.0.3163.100 Safari/537.36'
-        }
+    }
     text = text.replace(" ", '+')
     url = f'https://www.google.com/search?q={text}'
     response = requests.get(url, headers=usr_agent)
@@ -189,13 +189,13 @@ async def get_settings(group_id):
         settings = await db.get_settings(group_id)
         temp.SETTINGS[group_id] = settings
     return settings
-    
+
 async def save_group_settings(group_id, key, value):
     current = await get_settings(group_id)
     current[key] = value
     temp.SETTINGS[group_id] = current
     await db.update_settings(group_id, current)
-    
+
 def get_size(size):
     """Get size in readable format"""
     units = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB"]
@@ -208,7 +208,7 @@ def get_size(size):
 
 def split_list(l, n):
     for i in range(0, len(l), n):
-        yield l[i:i + n]  
+        yield l[i:i + n]
 
 def get_file_id(msg: Message):
     if msg.media:
@@ -234,7 +234,6 @@ def extract_user(message: Message) -> Union[int, str]:
     if message.reply_to_message:
         user_id = message.reply_to_message.from_user.id
         user_first_name = message.reply_to_message.from_user.first_name
-
     elif len(message.command) > 1:
         if (
             len(message.entities) > 1 and
@@ -284,7 +283,6 @@ def last_online(from_user):
         time += from_user.last_online_date.strftime("%a, %d %b %Y, %H:%M:%S")
     return time
 
-
 def split_quotes(text: str) -> List:
     if not any(text.startswith(char) for char in START_CHAR):
         return text.split(None, 1)
@@ -297,7 +295,6 @@ def split_quotes(text: str) -> List:
         counter += 1
     else:
         return text.split(None, 1)
-
     key = remove_escapes(text[1:counter].strip())
     rest = text[counter + 1:].strip()
     if not key:
@@ -318,7 +315,6 @@ def parser(text, keyword):
         while to_check > 0 and text[to_check] == "\\":
             n_escapes += 1
             to_check -= 1
-
         if n_escapes % 2 == 0:
             note_data += text[prev:match.start(1)]
             prev = match.end(1)
@@ -350,7 +346,6 @@ def parser(text, keyword):
             prev = match.start(1) - 1
     else:
         note_data += text[prev:]
-
     try:
         return note_data, buttons, alerts
     except:
@@ -369,7 +364,6 @@ def remove_escapes(text: str) -> str:
             res += text[counter]
     return res
 
-
 def humanbytes(size):
     if not size:
         return ""
@@ -382,51 +376,42 @@ def humanbytes(size):
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
 
-# ── Safelink shortener ─────────────────────────────────────────────
-# Caches failed state to avoid hammering a broken API on every request
-_SAFELINK_FAILED = False
+# ── URL Shortener ──────────────────────────────────────────────────
+# Uses ccshort.in API (URL_SHORTENR_WEBSITE + URL_SHORTNER_WEBSITE_API from info.py)
+# If API fails or times out, returns original link immediately — bot never hangs.
+
+_SHORTLINK_FAILED = False  # Once failed, skip for entire session
 
 async def get_shortlink(link):
-    """
-    Returns a safelink-wrapped URL.
-    - If SAFELINK_BASE env var is not set → returns original link immediately.
-    - If the API fails or times out → returns original link immediately
-      and marks the API as failed so future calls skip it (until restart).
-    """
-    global _SAFELINK_FAILED
+    global _SHORTLINK_FAILED
 
-    base    = os.environ.get("SAFELINK_BASE", "").strip().rstrip("/")
-    api_key = os.environ.get("SAFELINK_API_KEY", "").strip()
-
-    # Skip if not configured or API already known to be down
-    if not base or _SAFELINK_FAILED:
+    # If API already known to be down this session, skip instantly
+    if _SHORTLINK_FAILED:
         return link
 
-    if link.startswith("http://"):
-        link = "https://" + link[7:]
+    if not URL_SHORTENR_WEBSITE or not URL_SHORTNER_WEBSITE_API:
+        return link
 
     try:
+        url = f"https://{URL_SHORTENR_WEBSITE}/api?api={URL_SHORTNER_WEBSITE_API}&url={link}&format=text"
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{base}/wp-admin/admin-ajax.php",
-                data={"action": "fsl_bot_save", "url": link, "key": api_key},
-                timeout=aiohttp.ClientTimeout(total=3),  # ⚡ 3 sec max, was 5
+            async with session.get(
+                url,
+                timeout=aiohttp.ClientTimeout(total=3),  # max 3 seconds
+                allow_redirects=False
             ) as resp:
-                text = await resp.text()
-                if not text.strip():
-                    # Empty response — API is broken, skip all future calls
-                    logger.warning("Safelink API returned empty response — disabling shortlink for this session.")
-                    _SAFELINK_FAILED = True
+                text = (await resp.text()).strip()
+                if text and text.startswith("http"):
+                    return text
+                else:
+                    logger.warning(f"Shortlink API bad response: {text[:100]}")
+                    _SHORTLINK_FAILED = True
                     return link
-                import json
-                data = json.loads(text)
-                if data.get("success") and data.get("data", {}).get("url"):
-                    return data["data"]["url"]
     except asyncio.TimeoutError:
-        logger.warning("Safelink API timed out — returning original link.")
-        _SAFELINK_FAILED = True
+        logger.warning("Shortlink API timed out — using original links.")
+        _SHORTLINK_FAILED = True
+        return link
     except Exception as e:
-        logger.warning(f"Safelink API error: {e}")
-        _SAFELINK_FAILED = True
-
-    return link
+        logger.warning(f"Shortlink API error: {e}")
+        _SHORTLINK_FAILED = True
+        return link
