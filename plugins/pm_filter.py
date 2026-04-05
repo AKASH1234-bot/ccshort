@@ -64,16 +64,18 @@ async def next_page(bot, query):
         return
     settings = await get_settings(query.message.chat.id)
     if settings['button']:
-        btn = [
-            [
-                InlineKeyboardButton(
-                    text=f"📁 [{get_size(file.file_size)}] {file.file_name}", 
-                    url=await get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
-                ),
-            ]
+        # ⚡ Parallel shortlink generation
+        links = await asyncio.gather(*[
+            get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
             for file in files
+        ])
+        btn = [
+            [InlineKeyboardButton(
+                text=f"📁 [{get_size(file.file_size)}] {file.file_name}",
+                url=link
+            )]
+            for file, link in zip(files, links)
         ]
-        
     else:
         btn = [
             [
@@ -372,7 +374,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
                     chat_id=query.from_user.id,
                     file_id=file_id,
                     caption=f_caption,
-                    protect_content=True if ident == "filep" else False 
+                    protect_content=True  # 🔐 always protect — prevents forwarding/saving
                 )
                 await query.answer('Check PM, I have sent files in pm', show_alert=True)
         except UserIsBlocked:
@@ -651,16 +653,18 @@ async def auto_filter(client, msg, spoll=False):
         await msg.message.delete()   
     pre = 'filep' if settings['file_secure'] else 'file'
     if settings["button"]:
-        btn = [
-            [
-                InlineKeyboardButton(
-                    text=f"📁 [{get_size(file.file_size)}] {file.file_name}", 
-                    url=await get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
-                ),
-            ]
+        # ⚡ Build all shortlinks in parallel — much faster than serial awaits
+        links = await asyncio.gather(*[
+            get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{file.file_id}")
             for file in files
+        ])
+        btn = [
+            [InlineKeyboardButton(
+                text=f"📁 [{get_size(file.file_size)}] {file.file_name}",
+                url=link
+            )]
+            for file, link in zip(files, links)
         ]
-    
     else:
         btn = [
             [
@@ -741,11 +745,17 @@ async def auto_filter(client, msg, spoll=False):
             await message.reply_text(cap, reply_markup=InlineKeyboardMarkup(btn))
     else:
         dll=await message.reply_text(cap, reply_markup=InlineKeyboardMarkup(btn))
-        await asyncio.sleep(180)
-        fll=await dll.edit_text(f"<b>🗑️ Filter Deleted After 3 mins ‼️ \n 🔍Search Again !!</b>")
-        await asyncio.sleep(180)
-        await fll.delete()
-        await message.delete()
+        # ⚡ Non-blocking auto-delete — won't delay next user requests
+        async def _auto_delete(msg, orig):
+            await asyncio.sleep(180)
+            try:
+                fll = await msg.edit_text("<b>🗑️ Filter Deleted After 3 mins ‼️ \n 🔍Search Again !!</b>")
+                await asyncio.sleep(60)
+                await fll.delete()
+                await orig.delete()
+            except Exception:
+                pass
+        asyncio.create_task(_auto_delete(dll, message))
     if spoll:
         await msg.message.delete()
 
@@ -790,12 +800,15 @@ async def advantage_spell_chok(msg):
         [InlineKeyboardButton("❌ Close ❌", callback_data="close_data")]
     )
     s = await message.reply_text(f"<b>👋 Hello {message.from_user.mention},\n\nI Couldn't Find The Movie: '{search}' \n\nSelect If You Meant Any One Of These 👇 & Wait Few Seconds ‼️</b>", reply_markup=InlineKeyboardMarkup(buttons))
-    await asyncio.sleep(120)
-    await s.delete()
-    try:
-        await message.delete()
-    except:
-        pass
+    # ⚡ Non-blocking cleanup
+    async def _del_spell(msg, orig):
+        await asyncio.sleep(120)
+        try:
+            await msg.delete()
+            await orig.delete()
+        except Exception:
+            pass
+    asyncio.create_task(_del_spell(s, message))
 
 
 
