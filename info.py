@@ -70,8 +70,15 @@ LOG_STR += (f"MAX_LIST_ELM Found, long list will be shortened to first {MAX_LIST
 LOG_STR += f"Your current IMDB template is {IMDB_TEMPLATE}"
 
 ## EXTRA FEATURES ##
-    
-      # URL Shortener #
 
+      # Safelink (your WordPress site) #
+# Set this to your WordPress safelink page, e.g. https://yourdomain.com/go
+SAFELINK_PAGE = environ.get('SAFELINK_PAGE', '')
+
+      # Auto-delete sent files (copyright protection) #
+# Files sent to users will be deleted after this many seconds (0 = disabled)
+AUTO_DELETE_TIME = int(environ.get('AUTO_DELETE_TIME', '300'))  # default 5 mins
+
+      # URL Shortener (legacy — not used if SAFELINK_PAGE is set) #
 URL_SHORTENR_WEBSITE = environ.get('URL_SHORTENR_WEBSITE', 'ccshort.in')
 URL_SHORTNER_WEBSITE_API = environ.get('URL_SHORTNER_WEBSITE_API', 'ec5a584c0578d6dc81fd6bc6a02ec9a0e96a67b3')
