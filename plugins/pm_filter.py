@@ -20,7 +20,7 @@ logger.setLevel(logging.ERROR)
 
 BUTTONS = {}
 
-# Channel buttons — shown only when file is delivered to user
+# ✅ Shown when file is received by user
 CHANNEL_BUTTONS = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("🎬 Movie Search",  url="https://t.me/+AngJ8lGmH4wwNWY1"),
@@ -48,7 +48,7 @@ def _caption(files):
 async def _file_btns(files, settings):
     pre = 'filep' if settings['file_secure'] else 'file'
     if settings['button']:
-        # ⚡ All shortlinks fetched simultaneously instead of one by one
+        # ⚡ All shortlinks fetched simultaneously
         safelinks = await asyncio.gather(*[
             get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{f.file_id}")
             for f in files
@@ -233,6 +233,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 return await query.answer(url=f"https://t.me/{temp.U_NAME}?start={ident}_{file_id}")
             if settings['botpm']:
                 return await query.answer(url=f"https://t.me/{temp.U_NAME}?start={ident}_{file_id}")
+            # ✅ Buttons shown when file is received
             await client.send_cached_media(
                 chat_id=query.from_user.id, file_id=file_id,
                 caption=f_caption, protect_content=True,
@@ -251,6 +252,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
         files_ = await get_file_details(file_id)
         if not files_: return await query.answer('File not found.')
         await query.answer()
+        # ✅ Buttons shown when file is received
         await client.send_cached_media(
             chat_id=query.from_user.id, file_id=file_id,
             caption=_caption(files_[0]), protect_content=True,
@@ -365,12 +367,7 @@ async def auto_filter(client, msg, spoll=False):
     else:
         btn.append([InlineKeyboardButton("🗓 1/1", callback_data="pages")])
 
-    # Channel buttons at bottom of search results
-    btn.append([
-        InlineKeyboardButton("🎬 Movie Search",  url="https://t.me/+AngJ8lGmH4wwNWY1"),
-        InlineKeyboardButton("📢 Movie Updates", url="https://t.me/cinemaclubnew"),
-    ])
-    btn.append([InlineKeyboardButton("📰 Movie News", url="https://t.me/ccl_news")])
+    # ❌ NO channel buttons in search results
 
     imdb = await get_poster(search, file=files[0].file_name) if settings["imdb"] else None
     if imdb:
