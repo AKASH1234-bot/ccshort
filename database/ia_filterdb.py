@@ -35,7 +35,6 @@ class Media(Document):
 async def save_file(media):
     """Save file in database"""
 
-    # TODO: Find better way to get same file_id for same media to avoid duplicates
     file_id, file_ref = unpack_new_file_id(media.file_id)
     file_name = re.sub(r"(_|\-|\.|\+)", " ", str(media.file_name))
     try:
@@ -58,22 +57,16 @@ async def save_file(media):
             logger.warning(
                 f'{getattr(media, "file_name", "NO_FILE")} is already saved in database'
             )
-
             return False, 0
         else:
             logger.info(f'{getattr(media, "file_name", "NO_FILE")} is saved to database')
             return True, 1
 
 
-
 async def get_search_results(query, file_type=None, max_results=10, offset=0, filter=False):
     """For given query return (results, next_offset)"""
 
     query = query.strip()
-    #if filter:
-        #better ?
-        #query = query.replace(' ', r'(\s|\.|\+|\-|_)')
-        #raw_pattern = r'(\s|_|\-|\.|\+)' + query + r'(\s|_|\-|\.|\+)'
     if not query:
         raw_pattern = '.'
     elif ' ' not in query:
@@ -101,15 +94,14 @@ async def get_search_results(query, file_type=None, max_results=10, offset=0, fi
         next_offset = ''
 
     cursor = Media.find(filter)
-    # Sort ascending by file name
-    cursor.sort('file_name', 1)
+    # Sort ascending by file size (smallest first)
+    cursor.sort('file_size', 1)
     # Slice files according to offset and max results
     cursor.skip(offset).limit(max_results)
     # Get list of files
     files = await cursor.to_list(length=max_results)
 
     return files, next_offset, total_results
-
 
 
 async def get_file_details(query):
