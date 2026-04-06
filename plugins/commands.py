@@ -19,14 +19,6 @@ from plugins.fsub import ForceSub
 
 BATCH_FILES = {}
 
-CHANNEL_BUTTONS = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton("🎬 Movie Search", url="https://t.me/+AngJ8lGmH4wwNWY1"),
-        InlineKeyboardButton("📢 Movie Updates", url="https://t.me/cinemaclubnew"),
-    ],
-    [InlineKeyboardButton("📰 Movie News", url="https://t.me/ccl_news")],
-])
-
 
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
@@ -184,8 +176,6 @@ async def start(client, message):
         return await sts.delete()
 
     # ── File delivery via shortlink (/start files_FILEID) ──────────
-    # The shortlink sends users here with data = "files_FILEID"
-    # We split only on the FIRST underscore to get pre and file_id
     if "_" in data:
         pre, file_id = data.split("_", 1)
     else:
@@ -240,13 +230,13 @@ async def start(client, message):
     if f_caption is None:
         f_caption = f"{files.file_name}"
 
+    # ✅ File sent with NO extra buttons
     try:
         await client.send_cached_media(
             chat_id=message.from_user.id,
             file_id=file_id,
             caption=f_caption,
             protect_content=True,
-            reply_markup=CHANNEL_BUTTONS,
         )
     except FloodWait as e:
         await asyncio.sleep(e.x)
@@ -255,7 +245,6 @@ async def start(client, message):
             file_id=file_id,
             caption=f_caption,
             protect_content=True,
-            reply_markup=CHANNEL_BUTTONS,
         )
     except Exception as e:
         logger.exception(e)
