@@ -2,9 +2,7 @@ class script(object):
 
     START_TXT = """👋 Hello {},
 I'm <a href=https://t.me/{}>{}</a> — your personal movie file bot.
-Add me to your group and I'll find movies for you!
-
-🎬 Just type any movie name in the group."""
+Add me to your group and I'll find movies for you!"""
 
     HELP_TXT = """👋 Hey {}
 Here are my commands and features."""
