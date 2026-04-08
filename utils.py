@@ -1,6 +1,7 @@
 import logging
 from pyrogram.errors import InputUserDeactivated, UserNotParticipant, FloodWait, UserIsBlocked, PeerIdInvalid
-from info import AUTH_CHANNEL, ADMINS, LONG_IMDB_DESCRIPTION, MAX_LIST_ELM, URL_SHORTENR_WEBSITE, URL_SHORTNER_WEBSITE_API
+# FIX: Added REQ_CHANNEL to imports — was missing, causing NameError in is_subscribed()
+from info import AUTH_CHANNEL, REQ_CHANNEL, ADMINS, LONG_IMDB_DESCRIPTION, MAX_LIST_ELM, URL_SHORTENR_WEBSITE, URL_SHORTNER_WEBSITE_API
 from imdb import Cinemagoer
 import asyncio
 from pyrogram.types import Message, InlineKeyboardButton
@@ -26,11 +27,11 @@ BTN_URL_REGEX = re.compile(
 imdb = Cinemagoer()
 
 BANNED = {}
-SMART_OPEN = '"'
-SMART_CLOSE = '"'
+SMART_OPEN = '\u201c'
+SMART_CLOSE = '\u201d'
 START_CHAR = ('\'', '"', SMART_OPEN)
 
-# temp db for banned 
+# temp db for banned
 class temp(object):
     BANNED_USERS = []
     BANNED_CHATS = []
@@ -81,7 +82,7 @@ async def get_poster(query, bulk=False, id=False, file=None):
         elif file is not None:
             year = re.findall(r'[1-2]\d{3}', file, re.IGNORECASE)
             if year:
-                year = list_to_str(year[:1]) 
+                year = list_to_str(year[:1])
         else:
             year = None
         movieid = imdb.search_movie(title.lower(), results=10)
@@ -189,13 +190,13 @@ async def get_settings(group_id):
         settings = await db.get_settings(group_id)
         temp.SETTINGS[group_id] = settings
     return settings
-    
+
 async def save_group_settings(group_id, key, value):
     current = await get_settings(group_id)
     current[key] = value
     temp.SETTINGS[group_id] = current
     await db.update_settings(group_id, current)
-    
+
 def get_size(size):
     """Get size in readable format"""
     units = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB"]
@@ -208,7 +209,7 @@ def get_size(size):
 
 def split_list(l, n):
     for i in range(0, len(l), n):
-        yield l[i:i + n]  
+        yield l[i:i + n]
 
 def get_file_id(msg: Message):
     if msg.media:
