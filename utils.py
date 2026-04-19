@@ -1,16 +1,14 @@
 import logging
+import json
 from pyrogram.errors import InputUserDeactivated, UserNotParticipant, FloodWait, UserIsBlocked, PeerIdInvalid
-# FIX: Added REQ_CHANNEL to imports — was missing, causing NameError in is_subscribed()
 from info import AUTH_CHANNEL, REQ_CHANNEL, ADMINS, LONG_IMDB_DESCRIPTION, MAX_LIST_ELM, URL_SHORTENR_WEBSITE, URL_SHORTNER_WEBSITE_API
 from imdb import Cinemagoer
 import asyncio
 from pyrogram.types import Message, InlineKeyboardButton
 from pyrogram import enums
-from typing import Union
+from typing import Union, List
 import re
 import os
-from datetime import datetime
-from typing import List
 from database.users_chats_db import db
 from bs4 import BeautifulSoup
 import requests
@@ -31,12 +29,28 @@ SMART_OPEN = '\u201c'
 SMART_CLOSE = '\u201d'
 START_CHAR = ('\'', '"', SMART_OPEN)
 
-# temp db for banned
+# ── Shortlink: persistent session + cache ─────────────────────────
+_session: aiohttp.ClientSession = None
+_shortlink_cache: dict = {}
+MAX_CACHE = 1000
+
+def _get_session() -> aiohttp.ClientSession:
+    global _session
+    if _session is None or _session.closed:
+        connector = aiohttp.TCPConnector(limit=20, ttl_dns_cache=300)
+        _session = aiohttp.ClientSession(
+            connector=connector,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=aiohttp.ClientTimeout(total=6),
+        )
+    return _session
+# ─────────────────────────────────────────────────────────────────
+
 class temp(object):
     BANNED_USERS = []
     BANNED_CHATS = []
     ME = None
-    CURRENT=int(os.environ.get("SKIP", 2))
+    CURRENT = int(os.environ.get("SKIP", 2))
     CANCEL = False
     MELCOW = {}
     U_NAME = None
@@ -46,6 +60,7 @@ class temp(object):
     USERS_CANCEL = False
     GROUPS_CANCEL = False
 
+
 async def is_subscribed(bot, query):
     if not (AUTH_CHANNEL or REQ_CHANNEL):
         return True
@@ -54,10 +69,8 @@ async def is_subscribed(bot, query):
 
     if db2().isActive():
         user = await db2().get_user(query.from_user.id)
-        if user:
-            return True
-        else:
-            return False
+        return bool(user)
+
     try:
         user = await bot.get_chat_member(AUTH_CHANNEL, query.from_user.id)
     except UserNotParticipant:
@@ -66,10 +79,8 @@ async def is_subscribed(bot, query):
         logger.exception(e)
         return False
     else:
-        if not user.status == enums.ChatMemberStatus.BANNED:
-            return True
-        else:
-            return False
+        return user.status != enums.ChatMemberStatus.BANNED
+
 
 async def get_poster(query, bulk=False, id=False, file=None):
     if not id:
@@ -89,12 +100,12 @@ async def get_poster(query, bulk=False, id=False, file=None):
         if not movieid:
             return None
         if year:
-            filtered=list(filter(lambda k: str(k.get('year')) == str(year), movieid))
+            filtered = list(filter(lambda k: str(k.get('year')) == str(year), movieid))
             if not filtered:
                 filtered = movieid
         else:
             filtered = movieid
-        movieid=list(filter(lambda k: k.get('kind') in ['movie', 'tv series'], filtered))
+        movieid = list(filter(lambda k: k.get('kind') in ['movie', 'tv series'], filtered))
         if not movieid:
             movieid = filtered
         if bulk:
@@ -102,6 +113,7 @@ async def get_poster(query, bulk=False, id=False, file=None):
         movieid = movieid[0].movieID
     else:
         movieid = query
+
     movie = imdb.get_movie(movieid)
     if movie.get("original air date"):
         date = movie["original air date"]
@@ -109,6 +121,7 @@ async def get_poster(query, bulk=False, id=False, file=None):
         date = movie.get("year")
     else:
         date = "N/A"
+
     plot = ""
     if not LONG_IMDB_DESCRIPTION:
         plot = movie.get('plot')
@@ -134,10 +147,10 @@ async def get_poster(query, bulk=False, id=False, file=None):
         "certificates": list_to_str(movie.get("certificates")),
         "languages": list_to_str(movie.get("languages")),
         "director": list_to_str(movie.get("director")),
-        "writer":list_to_str(movie.get("writer")),
-        "producer":list_to_str(movie.get("producer")),
-        "composer":list_to_str(movie.get("composer")),
-        "cinematographer":list_to_str(movie.get("cinematographer")),
+        "writer": list_to_str(movie.get("writer")),
+        "producer": list_to_str(movie.get("producer")),
+        "composer": list_to_str(movie.get("composer")),
+        "cinematographer": list_to_str(movie.get("cinematographer")),
         "music_team": list_to_str(movie.get("music department")),
         "distributors": list_to_str(movie.get("distributors")),
         'release_date': date,
@@ -146,8 +159,9 @@ async def get_poster(query, bulk=False, id=False, file=None):
         'poster': movie.get('full-size cover url'),
         'plot': plot,
         'rating': str(movie.get("rating")),
-        'url':f'https://www.imdb.com/title/tt{movieid}'
+        'url': f'https://www.imdb.com/title/tt{movieid}'
     }
+
 
 async def broadcast_messages(user_id, message):
     try:
@@ -167,14 +181,15 @@ async def broadcast_messages(user_id, message):
         await db.delete_user(int(user_id))
         logging.info(f"{user_id} - PeerIdInvalid")
         return False, "Error"
-    except Exception as e:
+    except Exception:
         return False, "Error"
+
 
 async def search_gagala(text):
     usr_agent = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/61.0.3163.100 Safari/537.36'
-        }
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                      '(KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36'
+    }
     text = text.replace(" ", '+')
     url = f'https://www.google.com/search?q={text}'
     response = requests.get(url, headers=usr_agent)
@@ -191,14 +206,15 @@ async def get_settings(group_id):
         temp.SETTINGS[group_id] = settings
     return settings
 
+
 async def save_group_settings(group_id, key, value):
     current = await get_settings(group_id)
     current[key] = value
     temp.SETTINGS[group_id] = current
     await db.update_settings(group_id, current)
 
+
 def get_size(size):
-    """Get size in readable format"""
     units = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB"]
     size = float(size)
     i = 0
@@ -207,40 +223,33 @@ def get_size(size):
         size /= 1024.0
     return "%.2f %s" % (size, units[i])
 
+
 def split_list(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
+
 def get_file_id(msg: Message):
     if msg.media:
         for message_type in (
-            "photo",
-            "animation",
-            "audio",
-            "document",
-            "video",
-            "video_note",
-            "voice",
-            "sticker"
+            "photo", "animation", "audio", "document",
+            "video", "video_note", "voice", "sticker"
         ):
             obj = getattr(msg, message_type)
             if obj:
                 setattr(obj, "message_type", message_type)
                 return obj
 
+
 def extract_user(message: Message) -> Union[int, str]:
-    """extracts the user from a message"""
     user_id = None
     user_first_name = None
     if message.reply_to_message:
         user_id = message.reply_to_message.from_user.id
         user_first_name = message.reply_to_message.from_user.first_name
-
     elif len(message.command) > 1:
-        if (
-            len(message.entities) > 1 and
-            message.entities[1].type == enums.MessageEntityType.TEXT_MENTION
-        ):
+        if (len(message.entities) > 1 and
+                message.entities[1].type == enums.MessageEntityType.TEXT_MENTION):
             required_entity = message.entities[1]
             user_id = required_entity.user.id
             user_first_name = required_entity.user.first_name
@@ -256,6 +265,7 @@ def extract_user(message: Message) -> Union[int, str]:
         user_first_name = message.from_user.first_name
     return (user_id, user_first_name)
 
+
 def list_to_str(k):
     if not k:
         return "N/A"
@@ -266,6 +276,7 @@ def list_to_str(k):
         return ' '.join(f'{elem}, ' for elem in k)
     else:
         return ' '.join(f'{elem}, ' for elem in k)
+
 
 def last_online(from_user):
     time = ""
@@ -298,12 +309,12 @@ def split_quotes(text: str) -> List:
         counter += 1
     else:
         return text.split(None, 1)
-
     key = remove_escapes(text[1:counter].strip())
     rest = text[counter + 1:].strip()
     if not key:
         key = text[0] + text[0]
     return list(filter(None, [key, rest]))
+
 
 def parser(text, keyword):
     if "buttonalert" in text:
@@ -319,7 +330,6 @@ def parser(text, keyword):
         while to_check > 0 and text[to_check] == "\\":
             n_escapes += 1
             to_check -= 1
-
         if n_escapes % 2 == 0:
             note_data += text[prev:match.start(1)]
             prev = match.end(1)
@@ -351,11 +361,11 @@ def parser(text, keyword):
             prev = match.start(1) - 1
     else:
         note_data += text[prev:]
-
     try:
         return note_data, buttons, alerts
     except:
         return note_data, buttons, None
+
 
 def remove_escapes(text: str) -> str:
     res = ""
@@ -383,16 +393,9 @@ def humanbytes(size):
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
 
-async def get_shortlink(link):
-    """
-    Saves link to WordPress Plotline Safelink plugin and returns ?fsl=CODE URL.
-    SAFELINK_BASE    = https://theplotlinee.link
-    SAFELINK_API_KEY = plotline123
-    """
-    from os import environ
-
-    base    = environ.get("SAFELINK_BASE", "").strip().rstrip("/")
-    api_key = environ.get("SAFELINK_API_KEY", "").strip()
+async def get_shortlink(link: str) -> str:
+    base    = os.environ.get("SAFELINK_BASE", "").strip().rstrip("/")
+    api_key = os.environ.get("SAFELINK_API_KEY", "").strip()
 
     if not base:
         return link
@@ -400,29 +403,27 @@ async def get_shortlink(link):
     if link.startswith("http://"):
         link = "https://" + link[7:]
 
+    # Return cached result instantly
+    if link in _shortlink_cache:
+        return _shortlink_cache[link]
+
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{base}/wp-admin/admin-ajax.php",
-                data={"action": "fsl_bot_save", "url": link, "key": api_key},
-                timeout=aiohttp.ClientTimeout(total=10),
-                headers={"User-Agent": "Mozilla/5.0"}
-            ) as resp:
-                raw = await resp.text()
-                logger.info(f"Safelink API status: {resp.status}, response: {raw[:200]}")
-                if not raw.strip():
-                    logger.warning("Safelink API returned empty response")
-                    return link
-                import json
-                try:
-                    data = json.loads(raw)
-                    if data.get("success") and data.get("data", {}).get("url"):
-                        return data["data"]["url"]
-                    else:
-                        logger.warning(f"Safelink API unexpected response: {data}")
-                except json.JSONDecodeError:
-                    logger.warning(f"Safelink API non-JSON response: {raw[:200]}")
+        session = _get_session()
+        async with session.post(
+            f"{base}/wp-admin/admin-ajax.php",
+            data={"action": "fsl_bot_save", "url": link, "key": api_key},
+        ) as resp:
+            raw = await resp.text()
+            if not raw.strip():
+                return link
+            data = json.loads(raw)
+            if data.get("success") and data.get("data", {}).get("url"):
+                short = data["data"]["url"]
+                if len(_shortlink_cache) >= MAX_CACHE:
+                    del _shortlink_cache[next(iter(_shortlink_cache))]
+                _shortlink_cache[link] = short
+                return short
     except Exception as e:
-        logger.warning(f"Safelink API error: {e}")
+        logger.warning(f"Safelink error: {e}")
 
     return link
