@@ -19,7 +19,6 @@ from plugins.fsub import ForceSub
 
 BATCH_FILES = {}
 
-# ✅ Shown when file is received by user
 CHANNEL_BUTTONS = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("🎬 Movie Search", url="https://t.me/+AngJ8lGmH4wwNWY1"),
@@ -50,7 +49,6 @@ async def start(client, message):
         await db.add_user(message.from_user.id, message.from_user.first_name)
         await client.send_message(LOG_CHANNEL, script.LOG_TEXT_P.format(message.from_user.id, message.from_user.mention))
 
-    # Plain /start — no arguments
     if len(message.command) != 2:
         buttons = [
             [InlineKeyboardButton('⚡️Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Gʀᴏᴜᴘ⚡️', url=f'http://t.me/{temp.U_NAME}?startgroup=true')],
@@ -66,7 +64,6 @@ async def start(client, message):
         )
         return
 
-    # /start subscribe/error/okay/help
     if len(message.command) == 2 and message.command[1] in ["subscribe", "error", "okay", "help"]:
         buttons = [
             [InlineKeyboardButton('⚡️Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Gʀᴏᴜᴘ⚡️', url=f'http://t.me/{temp.U_NAME}?startgroup=true')],
@@ -84,7 +81,6 @@ async def start(client, message):
 
     data = message.command[1]
 
-    # BATCH
     if data.split("-", 1)[0] == "BATCH":
         sts = await message.reply("Please wait...")
         batch_file_id = data.split("-", 1)[1]
@@ -136,7 +132,6 @@ async def start(client, message):
         await sts.delete()
         return
 
-    # DSTORE
     if data.split("-", 1)[0] == "DSTORE":
         sts = await message.reply("Please wait...")
         b_string = data.split("-", 1)[1]
@@ -184,7 +179,6 @@ async def start(client, message):
             await asyncio.sleep(1)
         return await sts.delete()
 
-    # ── File delivery via shortlink (/start files_FILEID) ──────────
     if "_" in data:
         pre, file_id = data.split("_", 1)
     else:
@@ -194,7 +188,6 @@ async def start(client, message):
     files_ = await get_file_details(file_id)
 
     if not files_:
-        # Try base64 decode fallback
         try:
             decoded_data = (base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")
             pre, file_id = decoded_data.split("_", 1)
@@ -219,6 +212,14 @@ async def start(client, message):
                 except:
                     pass
             await msg.edit_caption(f_caption)
+            await client.send_message(
+                LOG_CHANNEL,
+                f"#FILE_SENT\n"
+                f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
+                f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
+                f"📄 **File:** `{title}`\n"
+                f"📦 **Size:** {size}"
+            )
             return
         except Exception as e:
             logger.exception(e)
@@ -240,7 +241,6 @@ async def start(client, message):
     if f_caption is None:
         f_caption = f"{files.file_name}"
 
-    # ✅ File sent with CHANNEL_BUTTONS
     try:
         await client.send_cached_media(
             chat_id=message.from_user.id,
@@ -248,6 +248,14 @@ async def start(client, message):
             caption=f_caption,
             protect_content=True,
             reply_markup=CHANNEL_BUTTONS,
+        )
+        await client.send_message(
+            LOG_CHANNEL,
+            f"#FILE_SENT\n"
+            f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
+            f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
+            f"📄 **File:** `{title}`\n"
+            f"📦 **Size:** {size}"
         )
     except FloodWait as e:
         await asyncio.sleep(e.x)
