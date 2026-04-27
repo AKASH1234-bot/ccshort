@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 from plugins.fsub import ForceSub
 
 BATCH_FILES = {}
-_PROCESSING = set()  # dedup guard: message IDs currently being processed
+_PROCESSING = set()        # dedup: (user_id, msg_id) pairs in flight
+_USER_LOCKS: dict = {}     # per-user lock so parallel workers can't double-send
 
 CHANNEL_BUTTONS = InlineKeyboardMarkup([
     [
@@ -31,14 +32,24 @@ CHANNEL_BUTTONS = InlineKeyboardMarkup([
 
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
-    msg_uid = (message.from_user.id if message.from_user else message.chat.id, message.id)
+    user_id = message.from_user.id if message.from_user else message.chat.id
+    msg_uid = (user_id, message.id)
+
+    # Drop exact duplicate updates (same msg_id for same user)
     if msg_uid in _PROCESSING:
         return
     _PROCESSING.add(msg_uid)
-    try:
-        await _start_handler(client, message)
-    finally:
-        _PROCESSING.discard(msg_uid)
+
+    # Per-user lock: prevent 50 workers from racing on the same user
+    if user_id not in _USER_LOCKS:
+        _USER_LOCKS[user_id] = asyncio.Lock()
+    lock = _USER_LOCKS[user_id]
+
+    async with lock:
+        try:
+            await _start_handler(client, message)
+        finally:
+            _PROCESSING.discard(msg_uid)
 
 
 async def _start_handler(client, message):
