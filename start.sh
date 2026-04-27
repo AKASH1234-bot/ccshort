@@ -1,9 +1,9 @@
 if [ -z $UPSTREAM_REPO ]
 then
   echo "Cloning main Repository"
-  git clone https://github.com/AKASH1234-bot/ccshort.git /ccshort
+  git clone https://github.com/AKASH1234-bot/ccshort.git /EvaMaria
 else
-  echo "Cloning Custom Repo from $UPSTREAM_REPO "
+  echo "Cloning Custom Repo from $UPSTREAM_REPO"
   git clone $UPSTREAM_REPO /EvaMaria
 fi
 cd /EvaMaria
