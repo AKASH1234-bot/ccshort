@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 from plugins.fsub import ForceSub
 
 BATCH_FILES = {}
+_PROCESSING = set()  # dedup guard: message IDs currently being processed
 
 CHANNEL_BUTTONS = InlineKeyboardMarkup([
     [
@@ -30,6 +31,17 @@ CHANNEL_BUTTONS = InlineKeyboardMarkup([
 
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
+    msg_uid = (message.from_user.id if message.from_user else message.chat.id, message.id)
+    if msg_uid in _PROCESSING:
+        return
+    _PROCESSING.add(msg_uid)
+    try:
+        await _start_handler(client, message)
+    finally:
+        _PROCESSING.discard(msg_uid)
+
+
+async def _start_handler(client, message):
     if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
         buttons = [
             [InlineKeyboardButton('⚡️Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Gʀᴏᴜᴘ⚡️', url=f'http://t.me/{temp.U_NAME}?startgroup=true')],
