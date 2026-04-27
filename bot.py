@@ -46,7 +46,9 @@ class Bot(Client):
         app = web.AppRunner(await web_server())
         await app.setup()
         bind_address = "0.0.0.0"
-        await web.TCPSite(app, bind_address, PORT).start()
+        # Use 8080 for bot's internal web server — Render uses 10000 for gunicorn
+        bot_port = 8080
+        await web.TCPSite(app, bind_address, bot_port).start()
         logging.info(f"{me.first_name} with for Pyrogram v{__version__} (Layer {layer}) started on {me.username}.")
         logging.info(LOG_STR)
 
