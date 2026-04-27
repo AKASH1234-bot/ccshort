@@ -65,7 +65,7 @@ async def _file_btns(files, settings):
 
 # ── Handlers ───────────────────────────────────────────────────────
 
-@Client.on_message((filters.group | filters.private) & filters.text & filters.incoming)
+@Client.on_message((filters.group | filters.private) & filters.text & filters.incoming & ~filters.command(["start", "help", "about", "filter", "filters", "del", "delall", "connect", "disconnect", "connections", "settings", "set_template", "link", "plink", "batch", "pbatch", "index", "deleteall", "delete", "stats", "id", "info", "imdb", "search", "broadcast", "ban", "unban", "logs", "channel"]))
 async def give_filter(client, message):
     if not await manual_filters(client, message):
         await auto_filter(client, message)
