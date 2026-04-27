@@ -214,39 +214,39 @@ async def _start_handler(client, message):
         try:
             decoded_data = (base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")
             pre, file_id = decoded_data.split("_", 1)
-            msg = await client.send_cached_media(
+        except Exception as e:
+            logger.exception(e)
+            return await message.reply('❌ File not found or link expired. Please search again.')
+        # Build caption before sending so edit_caption (which fails on protected content) isn't needed
+        f_caption = ""
+        if CUSTOM_FILE_CAPTION:
+            try:
+                f_caption = CUSTOM_FILE_CAPTION.format(file_name='', file_size='', file_caption='')
+            except Exception:
+                pass
+        try:
+            await client.send_cached_media(
                 chat_id=message.from_user.id,
                 file_id=file_id,
+                caption=f_caption,
                 protect_content=True,
                 reply_markup=CHANNEL_BUTTONS,
             )
-            filetype = msg.media
-            file = getattr(msg, filetype.value)
-            title = file.file_name
-            size = get_size(file.file_size)
-            f_caption = f"<code>{title}</code>"
-            if CUSTOM_FILE_CAPTION:
-                try:
-                    f_caption = CUSTOM_FILE_CAPTION.format(
-                        file_name='' if title is None else title,
-                        file_size='' if size is None else size,
-                        file_caption=''
-                    )
-                except:
-                    pass
-            await msg.edit_caption(f_caption)
+        except Exception as e:
+            logger.exception(e)
+            return await message.reply('❌ File not found or link expired. Please search again.')
+        # Log separately
+        try:
             await client.send_message(
                 LOG_CHANNEL,
                 f"#FILE_SENT\n"
                 f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
                 f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
-                f"📄 **File:** `{title}`\n"
-                f"📦 **Size:** {size}"
+                f"📄 **File:** `{file_id}`"
             )
-            return
         except Exception as e:
-            logger.exception(e)
-            return await message.reply('❌ File not found or link expired. Please search again.')
+            logger.warning(f"LOG_CHANNEL send failed: {e}")
+        return
 
     files = files_[0]
     title = files.file_name
@@ -272,14 +272,6 @@ async def _start_handler(client, message):
             protect_content=True,
             reply_markup=CHANNEL_BUTTONS,
         )
-        await client.send_message(
-            LOG_CHANNEL,
-            f"#FILE_SENT\n"
-            f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
-            f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
-            f"📄 **File:** `{title}`\n"
-            f"📦 **Size:** {size}"
-        )
     except FloodWait as e:
         await asyncio.sleep(e.x)
         await client.send_cached_media(
@@ -292,6 +284,19 @@ async def _start_handler(client, message):
     except Exception as e:
         logger.exception(e)
         await message.reply('❌ Failed to send file. Please try again.')
+        return
+    # Log separately so a log failure never affects the user
+    try:
+        await client.send_message(
+            LOG_CHANNEL,
+            f"#FILE_SENT\n"
+            f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
+            f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
+            f"📄 **File:** `{title}`\n"
+            f"📦 **Size:** {size}"
+        )
+    except Exception as e:
+        logger.warning(f"LOG_CHANNEL send failed: {e}")
 
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
