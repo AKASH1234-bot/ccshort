@@ -1,7 +1,5 @@
 import logging
 import logging.config
-
-# Get logging configurations
 logging.config.fileConfig('logging.conf')
 logging.getLogger().setLevel(logging.INFO)
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
@@ -18,9 +16,7 @@ from pyrogram import types
 from aiohttp import web
 from plugins import web_server
 
-
 class Bot(Client):
-
     def __init__(self):
         super().__init__(
             name=SESSION,
@@ -46,9 +42,7 @@ class Bot(Client):
         app = web.AppRunner(await web_server())
         await app.setup()
         bind_address = "0.0.0.0"
-        # Use 8080 for bot's internal web server — Render uses 10000 for gunicorn
-        bot_port = 8080
-        await web.TCPSite(app, bind_address, bot_port).start()
+        await web.TCPSite(app, bind_address, int(PORT)).start()
         logging.info(f"{me.first_name} with for Pyrogram v{__version__} (Layer {layer}) started on {me.username}.")
         logging.info(LOG_STR)
 
@@ -71,7 +65,6 @@ class Bot(Client):
             for message in messages:
                 yield message
                 current += 1
-
 
 app = Bot()
 app.run()
