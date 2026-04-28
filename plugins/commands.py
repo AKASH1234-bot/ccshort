@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 import random
 import asyncio
@@ -14,10 +15,29 @@ from database.connections_mdb import active_connection
 import re
 import json
 import base64
+
 logger = logging.getLogger(__name__)
 
 BATCH_FILES = {}
 
+# ── Deduplication cache ───────────────────────────────────────────
+# Prevents double file send when shortlink redirects trigger /start twice
+_RECENT_STARTS = {}
+_DEDUP_TTL = 10  # seconds
+
+def _is_duplicate(user_id: int, data: str) -> bool:
+    key = f"{user_id}:{data}"
+    now = time.time()
+    # Clean old entries
+    expired = [k for k, t in _RECENT_STARTS.items() if now - t > _DEDUP_TTL]
+    for k in expired:
+        del _RECENT_STARTS[k]
+    if key in _RECENT_STARTS:
+        return True
+    _RECENT_STARTS[key] = now
+    return False
+
+# ── Buttons shown after file is received ─────────────────────────
 CHANNEL_BUTTONS = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("🎬 Movie Search", url="https://t.me/+AngJ8lGmH4wwNWY1"),
@@ -29,41 +49,53 @@ CHANNEL_BUTTONS = InlineKeyboardMarkup([
 
 @Client.on_message(filters.command("start") & filters.incoming & filters.private)
 async def start(client, message):
+    # ── Register new user ─────────────────────────────────────────
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
-        await client.send_message(LOG_CHANNEL, script.LOG_TEXT_P.format(temp.U_NAME, message.from_user.id, message.from_user.mention))
+        try:
+            await client.send_message(
+                LOG_CHANNEL,
+                script.LOG_TEXT_P.format(temp.U_NAME, message.from_user.id, message.from_user.mention)
+            )
+        except Exception:
+            pass
 
+    # ── Plain /start — show welcome ───────────────────────────────
     if len(message.command) != 2:
         buttons = [
             [InlineKeyboardButton('⚡️Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Gʀᴏᴜᴘ⚡️', url=f'http://t.me/{temp.U_NAME}?startgroup=true')],
             [InlineKeyboardButton('⚜️ Join Movie Request Group ⚜️', url='https://t.me/+AngJ8lGmH4wwNWY1')],
             [InlineKeyboardButton('🎬 Join Movie Updates Channel 🎬', url='https://t.me/+JyN02nw7VO9hNjll')],
         ]
-        reply_markup = InlineKeyboardMarkup(buttons)
         await message.reply_photo(
             photo=random.choice(PICS),
             caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
-            reply_markup=reply_markup,
-            parse_mode=enums.ParseMode.HTML
-        )
-        return
-
-    if len(message.command) == 2 and message.command[1] in ["subscribe", "error", "okay", "help"]:
-        buttons = [
-            [InlineKeyboardButton('⚡️Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Gʀᴏᴜᴘ⚡️', url=f'http://t.me/{temp.U_NAME}?startgroup=true')],
-            [InlineKeyboardButton('⚜️ Join Movie Request Group ⚜️', url='https://t.me/+AngJ8lGmH4wwNWY1')],
-            [InlineKeyboardButton('🎬 Join Movie Updates Channel 🎬', url='https://t.me/+JyN02nw7VO9hNjll')],
-        ]
-        reply_markup = InlineKeyboardMarkup(buttons)
-        await message.reply_photo(
-            photo=random.choice(PICS),
-            caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
-            reply_markup=reply_markup,
+            reply_markup=InlineKeyboardMarkup(buttons),
             parse_mode=enums.ParseMode.HTML
         )
         return
 
     data = message.command[1]
+
+    # ── Special keywords ──────────────────────────────────────────
+    if data in ["subscribe", "error", "okay", "help"]:
+        buttons = [
+            [InlineKeyboardButton('⚡️Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Gʀᴏᴜᴘ⚡️', url=f'http://t.me/{temp.U_NAME}?startgroup=true')],
+            [InlineKeyboardButton('⚜️ Join Movie Request Group ⚜️', url='https://t.me/+AngJ8lGmH4wwNWY1')],
+            [InlineKeyboardButton('🎬 Join Movie Updates Channel 🎬', url='https://t.me/+JyN02nw7VO9hNjll')],
+        ]
+        await message.reply_photo(
+            photo=random.choice(PICS),
+            caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=enums.ParseMode.HTML
+        )
+        return
+
+    # ── Deduplication check ───────────────────────────────────────
+    if _is_duplicate(message.from_user.id, data):
+        logger.info(f"Duplicate /start ignored for user {message.from_user.id}, data={data}")
+        return
 
     # ── BATCH mode ────────────────────────────────────────────────
     if data.split("-", 1)[0] == "BATCH":
@@ -77,7 +109,11 @@ async def start(client, message):
                     msgs = json.loads(file_data.read())
             except Exception:
                 await sts.edit("FAILED")
-                return await client.send_message(LOG_CHANNEL, "UNABLE TO OPEN FILE.")
+                try:
+                    await client.send_message(LOG_CHANNEL, "UNABLE TO OPEN FILE.")
+                except Exception:
+                    pass
+                return
             os.remove(file)
             BATCH_FILES[batch_file_id] = msgs
 
@@ -157,10 +193,20 @@ async def start(client, message):
                     file_name = getattr(media, 'file_name', '')
                     f_caption = getattr(msg, 'caption', file_name)
                 try:
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=CHANNEL_BUTTONS)
+                    await msg.copy(
+                        message.chat.id,
+                        caption=f_caption,
+                        protect_content=True if protect == "/pbatch" else False,
+                        reply_markup=CHANNEL_BUTTONS
+                    )
                 except FloodWait as e:
                     await asyncio.sleep(e.value)
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=CHANNEL_BUTTONS)
+                    await msg.copy(
+                        message.chat.id,
+                        caption=f_caption,
+                        protect_content=True if protect == "/pbatch" else False,
+                        reply_markup=CHANNEL_BUTTONS
+                    )
                 except Exception as e:
                     logger.exception(e)
                     continue
@@ -168,10 +214,16 @@ async def start(client, message):
                 continue
             else:
                 try:
-                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
+                    await msg.copy(
+                        message.chat.id,
+                        protect_content=True if protect == "/pbatch" else False
+                    )
                 except FloodWait as e:
                     await asyncio.sleep(e.value)
-                    await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
+                    await msg.copy(
+                        message.chat.id,
+                        protect_content=True if protect == "/pbatch" else False
+                    )
                 except Exception as e:
                     logger.exception(e)
                     continue
@@ -212,14 +264,17 @@ async def start(client, message):
                 except Exception:
                     pass
             await msg.edit_caption(f_caption)
-            await client.send_message(
-                LOG_CHANNEL,
-                f"#FILE_SENT\n"
-                f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
-                f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
-                f"📄 **File:** `{title}`\n"
-                f"📦 **Size:** {size}"
-            )
+            try:
+                await client.send_message(
+                    LOG_CHANNEL,
+                    f"#FILE_SENT\n"
+                    f"🤖 **Bot:** @{temp.U_NAME}\n"
+                    f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
+                    f"📄 **File:** `{title}`\n"
+                    f"📦 **Size:** {size}"
+                )
+            except Exception:
+                pass
         except Exception as e:
             logger.exception(e)
             await message.reply('❌ File not found or link expired. Please search again.')
@@ -249,14 +304,17 @@ async def start(client, message):
             protect_content=True,
             reply_markup=CHANNEL_BUTTONS,
         )
-        await client.send_message(
-            LOG_CHANNEL,
-            f"#FILE_SENT\n"
-            f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
-            f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
-            f"📄 **File:** `{title}`\n"
-            f"📦 **Size:** {size}"
-        )
+        try:
+            await client.send_message(
+                LOG_CHANNEL,
+                f"#FILE_SENT\n"
+                f"🤖 **Bot:** @{temp.U_NAME}\n"
+                f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
+                f"📄 **File:** `{title}`\n"
+                f"📦 **Size:** {size}"
+            )
+        except Exception:
+            pass
     except FloodWait as e:
         await asyncio.sleep(e.value)
         await client.send_cached_media(
@@ -278,12 +336,23 @@ async def start_group(client, message):
         [InlineKeyboardButton('⚜️ Join Movie Request Group ⚜️', url='https://t.me/+AngJ8lGmH4wwNWY1')],
         [InlineKeyboardButton('🎬 Join Movie Updates Channel 🎬', url='https://t.me/+JyN02nw7VO9hNjll')],
     ]
-    reply_markup = InlineKeyboardMarkup(buttons)
-    await message.reply(script.START_TXT.format(message.from_user.mention if message.from_user else message.chat.title, temp.U_NAME, temp.B_NAME), reply_markup=reply_markup)
+    await message.reply(
+        script.START_TXT.format(
+            message.from_user.mention if message.from_user else message.chat.title,
+            temp.U_NAME, temp.B_NAME
+        ),
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
     await asyncio.sleep(2)
     if not await db.get_chat(message.chat.id):
         total = await client.get_chat_members_count(message.chat.id)
-        await client.send_message(LOG_CHANNEL, script.LOG_TEXT_G.format(message.chat.title, message.chat.id, total, "Unknown"))
+        try:
+            await client.send_message(
+                LOG_CHANNEL,
+                script.LOG_TEXT_G.format(message.chat.title, message.chat.id, total, "Unknown")
+            )
+        except Exception:
+            pass
         await db.add_chat(message.chat.id, message.chat.title)
 
 
@@ -439,10 +508,9 @@ async def settings(client, message):
                 InlineKeyboardButton('✅ Yes' if settings["welcome"] else '❌ No', callback_data=f'setgs#welcome#{settings["welcome"]}#{grp_id}'),
             ],
         ]
-        reply_markup = InlineKeyboardMarkup(buttons)
         await message.reply_text(
             text=f"<b>Change Your Settings for {title} As Your Wish ⚙</b>",
-            reply_markup=reply_markup,
+            reply_markup=InlineKeyboardMarkup(buttons),
             disable_web_page_preview=True,
             parse_mode=enums.ParseMode.HTML,
             reply_to_message_id=message.id
