@@ -44,6 +44,11 @@ def _caption(files):
 
 async def _file_btns(files, settings):
     pre = 'filep' if settings['file_secure'] else 'file'
+    if settings['button']:
+        return [[InlineKeyboardButton(
+            f"📁 [{get_size(f.file_size)}] {f.file_name}",
+            url=f"https://t.me/{temp.U_NAME}?start=file_{f.file_id}"
+        )] for f in files]
     return [[
         InlineKeyboardButton(f.file_name,           callback_data=f'{pre}#{f.file_id}'),
         InlineKeyboardButton(get_size(f.file_size), callback_data=f'{pre}#{f.file_id}'),
@@ -302,11 +307,11 @@ async def cb_handler(client: Client, query: CallbackQuery):
             def s(k): return '✅' if settings[k] else '❌'
             btns = [
                 [InlineKeyboardButton('Filter Button', callback_data=f'setgs#button#{settings["button"]}#{grp_id}'), InlineKeyboardButton('Single' if settings["button"] else 'Double', callback_data=f'setgs#button#{settings["button"]}#{grp_id}')],
-                [InlineKeyboardButton('Bot PM',       callback_data=f'setgs#botpm#{settings["botpm"]}#{grp_id}'),        InlineKeyboardButton(s("botpm"),       callback_data=f'setgs#botpm#{settings["botpm"]}#{grp_id}')],
-                [InlineKeyboardButton('File Secure',  callback_data=f'setgs#file_secure#{settings["file_secure"]}#{grp_id}'), InlineKeyboardButton(s("file_secure"), callback_data=f'setgs#file_secure#{settings["file_secure"]}#{grp_id}')],
-                [InlineKeyboardButton('IMDB',         callback_data=f'setgs#imdb#{settings["imdb"]}#{grp_id}'),          InlineKeyboardButton(s("imdb"),        callback_data=f'setgs#imdb#{settings["imdb"]}#{grp_id}')],
-                [InlineKeyboardButton('Spell Check',  callback_data=f'setgs#spell_check#{settings["spell_check"]}#{grp_id}'), InlineKeyboardButton(s("spell_check"), callback_data=f'setgs#spell_check#{settings["spell_check"]}#{grp_id}')],
-                [InlineKeyboardButton('Welcome',      callback_data=f'setgs#welcome#{settings["welcome"]}#{grp_id}'),    InlineKeyboardButton(s("welcome"),     callback_data=f'setgs#welcome#{settings["welcome"]}#{grp_id}')],
+                [InlineKeyboardButton('Bot PM', callback_data=f'setgs#botpm#{settings["botpm"]}#{grp_id}'), InlineKeyboardButton(s("botpm"), callback_data=f'setgs#botpm#{settings["botpm"]}#{grp_id}')],
+                [InlineKeyboardButton('File Secure', callback_data=f'setgs#file_secure#{settings["file_secure"]}#{grp_id}'), InlineKeyboardButton(s("file_secure"), callback_data=f'setgs#file_secure#{settings["file_secure"]}#{grp_id}')],
+                [InlineKeyboardButton('IMDB', callback_data=f'setgs#imdb#{settings["imdb"]}#{grp_id}'), InlineKeyboardButton(s("imdb"), callback_data=f'setgs#imdb#{settings["imdb"]}#{grp_id}')],
+                [InlineKeyboardButton('Spell Check', callback_data=f'setgs#spell_check#{settings["spell_check"]}#{grp_id}'), InlineKeyboardButton(s("spell_check"), callback_data=f'setgs#spell_check#{settings["spell_check"]}#{grp_id}')],
+                [InlineKeyboardButton('Welcome', callback_data=f'setgs#welcome#{settings["welcome"]}#{grp_id}'), InlineKeyboardButton(s("welcome"), callback_data=f'setgs#welcome#{settings["welcome"]}#{grp_id}')],
             ]
             await query.message.edit_reply_markup(InlineKeyboardMarkup(btns))
         return await query.answer()
