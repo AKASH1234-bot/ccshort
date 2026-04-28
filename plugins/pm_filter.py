@@ -20,7 +20,6 @@ logger.setLevel(logging.ERROR)
 
 BUTTONS = {}
 
-# ✅ Shown when file is received by user
 CHANNEL_BUTTONS = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("🎬 Movie Search",  url="https://t.me/+AngJ8lGmH4wwNWY1"),
@@ -29,8 +28,6 @@ CHANNEL_BUTTONS = InlineKeyboardMarkup([
     [InlineKeyboardButton("📰 Movie News", url="https://t.me/ccl_news")],
 ])
 
-
-# ── Helpers ────────────────────────────────────────────────────────
 
 def _caption(files):
     title = files.file_name
@@ -48,9 +45,8 @@ def _caption(files):
 async def _file_btns(files, settings):
     pre = 'filep' if settings['file_secure'] else 'file'
     if settings['button']:
-        # ⚡ All shortlinks fetched simultaneously
         safelinks = await asyncio.gather(*[
-            get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=files_{f.file_id}")
+            get_shortlink(f"https://telegram.dog/{temp.U_NAME}?start=file_{f.file_id}")
             for f in files
         ])
         return [[InlineKeyboardButton(
@@ -62,8 +58,6 @@ async def _file_btns(files, settings):
         InlineKeyboardButton(get_size(f.file_size), callback_data=f'{pre}#{f.file_id}'),
     ] for f in files]
 
-
-# ── Handlers ───────────────────────────────────────────────────────
 
 @Client.on_message((filters.group | filters.private) & filters.text & filters.incoming & ~filters.command(["start", "help", "about", "filter", "filters", "del", "delall", "connect", "disconnect", "connections", "settings", "set_template", "link", "plink", "batch", "pbatch", "index", "deleteall", "delete", "stats", "id", "info", "imdb", "search", "broadcast", "ban", "unban", "logs", "channel"]))
 async def give_filter(client, message):
@@ -233,7 +227,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 return await query.answer(url=f"https://t.me/{temp.U_NAME}?start={ident}_{file_id}")
             if settings['botpm']:
                 return await query.answer(url=f"https://t.me/{temp.U_NAME}?start={ident}_{file_id}")
-            # ✅ Buttons shown when file is received
             await client.send_cached_media(
                 chat_id=query.from_user.id, file_id=file_id,
                 caption=f_caption, protect_content=True,
@@ -252,7 +245,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
         files_ = await get_file_details(file_id)
         if not files_: return await query.answer('File not found.')
         await query.answer()
-        # ✅ Buttons shown when file is received
         await client.send_cached_media(
             chat_id=query.from_user.id, file_id=file_id,
             caption=_caption(files_[0]), protect_content=True,
@@ -331,8 +323,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
     await query.answer()
 
 
-# ── Auto filter ────────────────────────────────────────────────────
-
 async def auto_filter(client, msg, spoll=False):
     if not spoll:
         message  = msg
@@ -352,8 +342,6 @@ async def auto_filter(client, msg, spoll=False):
         await msg.message.delete()
 
     btn = await _file_btns(files, settings)
-
-    # How to Download button at top
     btn.insert(0, [InlineKeyboardButton("⚡ HOW TO DOWNLOAD ⚡", url='https://t.me/ccllinks/3')])
 
     if offset != "":
@@ -366,8 +354,6 @@ async def auto_filter(client, msg, spoll=False):
         ])
     else:
         btn.append([InlineKeyboardButton("🗓 1/1", callback_data="pages")])
-
-    # ❌ NO channel buttons in search results
 
     imdb = await get_poster(search, file=files[0].file_name) if settings["imdb"] else None
     if imdb:
