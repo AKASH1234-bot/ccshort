@@ -1,3 +1,6 @@
-build:
-  docker:
-    worker: Dockerfile
+services:
+  - type: worker
+    name: ccshort
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 bot.py
