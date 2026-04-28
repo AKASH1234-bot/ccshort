@@ -9,7 +9,7 @@ from info import ADMINS, AUTH_CHANNEL, AUTH_USERS, CUSTOM_FILE_CAPTION, AUTH_GRO
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait, UserIsBlocked, MessageNotModified, PeerIdInvalid
-from utils import get_size, is_subscribed, get_poster, temp, get_settings, save_group_settings
+from utils import get_size, is_subscribed, get_poster, temp, get_settings, save_group_settings, get_shortlink
 from database.users_chats_db import db
 from database.ia_filterdb import Media, get_file_details, get_search_results
 from database.filters_mdb import del_all, find_filter, get_filters
@@ -45,10 +45,14 @@ def _caption(files):
 async def _file_btns(files, settings):
     pre = 'filep' if settings['file_secure'] else 'file'
     if settings['button']:
+        safelinks = await asyncio.gather(*[
+            get_shortlink(f"https://t.me/{temp.U_NAME}?start=file_{f.file_id}")
+            for f in files
+        ])
         return [[InlineKeyboardButton(
             f"📁 [{get_size(f.file_size)}] {f.file_name}",
-            url=f"https://t.me/{temp.U_NAME}?start=file_{f.file_id}"
-        )] for f in files]
+            url=safelink
+        )] for f, safelink in zip(files, safelinks)]
     return [[
         InlineKeyboardButton(f.file_name,           callback_data=f'{pre}#{f.file_id}'),
         InlineKeyboardButton(get_size(f.file_size), callback_data=f'{pre}#{f.file_id}'),
