@@ -27,23 +27,8 @@ CHANNEL_BUTTONS = InlineKeyboardMarkup([
 ])
 
 
-@Client.on_message(filters.command("start") & filters.incoming)
+@Client.on_message(filters.command("start") & filters.incoming & filters.private)
 async def start(client, message):
-    if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
-        buttons = [
-            [InlineKeyboardButton('⚡️Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Gʀᴏᴜᴘ⚡️', url=f'http://t.me/{temp.U_NAME}?startgroup=true')],
-            [InlineKeyboardButton('⚜️ Join Movie Request Group ⚜️', url='https://t.me/+AngJ8lGmH4wwNWY1')],
-            [InlineKeyboardButton('🎬 Join Movie Updates Channel 🎬', url='https://t.me/+JyN02nw7VO9hNjll')],
-        ]
-        reply_markup = InlineKeyboardMarkup(buttons)
-        await message.reply(script.START_TXT.format(message.from_user.mention if message.from_user else message.chat.title, temp.U_NAME, temp.B_NAME), reply_markup=reply_markup)
-        await asyncio.sleep(2)
-        if not await db.get_chat(message.chat.id):
-            total = await client.get_chat_members_count(message.chat.id)
-            await client.send_message(LOG_CHANNEL, script.LOG_TEXT_G.format(message.chat.title, message.chat.id, total, "Unknown"))
-            await db.add_chat(message.chat.id, message.chat.title)
-        return
-
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
         await client.send_message(LOG_CHANNEL, script.LOG_TEXT_P.format(temp.U_NAME, message.from_user.id, message.from_user.mention))
@@ -96,13 +81,12 @@ async def start(client, message):
             os.remove(file)
             BATCH_FILES[batch_file_id] = msgs
 
-        seen_ids = set()  # ✅ prevent duplicate sends
+        seen_ids = set()
         for msg in msgs:
             fid = msg.get("file_id")
             if not fid or fid in seen_ids:
                 continue
             seen_ids.add(fid)
-
             title = msg.get("title")
             size = get_size(int(msg.get("size", 0)))
             f_caption = msg.get("caption", "")
@@ -152,12 +136,11 @@ async def start(client, message):
             f_msg_id, l_msg_id, f_chat_id = decoded.split("_", 2)
             protect = "/pbatch" if PROTECT_CONTENT else "batch"
 
-        seen_msg_ids = set()  # ✅ prevent duplicate sends
+        seen_msg_ids = set()
         async for msg in client.iter_messages(int(f_chat_id), int(l_msg_id), int(f_msg_id)):
             if msg.id in seen_msg_ids:
                 continue
             seen_msg_ids.add(msg.id)
-
             if msg.media:
                 media = getattr(msg, msg.media.value)
                 if BATCH_FILE_CAPTION:
@@ -205,7 +188,6 @@ async def start(client, message):
     files_ = await get_file_details(file_id)
 
     if not files_:
-        # Try decoding as base64 file link
         try:
             decoded_data = (base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")
             pre, file_id = decoded_data.split("_", 1)
@@ -287,6 +269,22 @@ async def start(client, message):
     except Exception as e:
         logger.exception(e)
         await message.reply('❌ Failed to send file. Please try again.')
+
+
+@Client.on_message(filters.command("start") & filters.incoming & (filters.group | filters.channel))
+async def start_group(client, message):
+    buttons = [
+        [InlineKeyboardButton('⚡️Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Gʀᴏᴜᴘ⚡️', url=f'http://t.me/{temp.U_NAME}?startgroup=true')],
+        [InlineKeyboardButton('⚜️ Join Movie Request Group ⚜️', url='https://t.me/+AngJ8lGmH4wwNWY1')],
+        [InlineKeyboardButton('🎬 Join Movie Updates Channel 🎬', url='https://t.me/+JyN02nw7VO9hNjll')],
+    ]
+    reply_markup = InlineKeyboardMarkup(buttons)
+    await message.reply(script.START_TXT.format(message.from_user.mention if message.from_user else message.chat.title, temp.U_NAME, temp.B_NAME), reply_markup=reply_markup)
+    await asyncio.sleep(2)
+    if not await db.get_chat(message.chat.id):
+        total = await client.get_chat_members_count(message.chat.id)
+        await client.send_message(LOG_CHANNEL, script.LOG_TEXT_G.format(message.chat.title, message.chat.id, total, "Unknown"))
+        await db.add_chat(message.chat.id, message.chat.title)
 
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
