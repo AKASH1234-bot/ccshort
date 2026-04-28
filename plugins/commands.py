@@ -15,11 +15,8 @@ import re
 import json
 import base64
 logger = logging.getLogger(__name__)
-from plugins.fsub import ForceSub
 
 BATCH_FILES = {}
-_PROCESSING = set()        # dedup: (user_id, msg_id) pairs in flight
-_USER_LOCKS: dict = {}     # per-user lock so parallel workers can't double-send
 
 CHANNEL_BUTTONS = InlineKeyboardMarkup([
     [
@@ -32,27 +29,6 @@ CHANNEL_BUTTONS = InlineKeyboardMarkup([
 
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
-    user_id = message.from_user.id if message.from_user else message.chat.id
-    msg_uid = (user_id, message.id)
-
-    # Drop exact duplicate updates (same msg_id for same user)
-    if msg_uid in _PROCESSING:
-        return
-    _PROCESSING.add(msg_uid)
-
-    # Per-user lock: prevent 50 workers from racing on the same user
-    if user_id not in _USER_LOCKS:
-        _USER_LOCKS[user_id] = asyncio.Lock()
-    lock = _USER_LOCKS[user_id]
-
-    async with lock:
-        try:
-            await _start_handler(client, message)
-        finally:
-            _PROCESSING.discard(msg_uid)
-
-
-async def _start_handler(client, message):
     if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
         buttons = [
             [InlineKeyboardButton('⚡️Aᴅᴅ Mᴇ Tᴏ Yᴏᴜʀ Gʀᴏᴜᴘ⚡️', url=f'http://t.me/{temp.U_NAME}?startgroup=true')],
@@ -104,6 +80,7 @@ async def _start_handler(client, message):
 
     data = message.command[1]
 
+    # ── BATCH mode ────────────────────────────────────────────────
     if data.split("-", 1)[0] == "BATCH":
         sts = await message.reply("Please wait...")
         batch_file_id = data.split("-", 1)[1]
@@ -113,12 +90,19 @@ async def _start_handler(client, message):
             try:
                 with open(file) as file_data:
                     msgs = json.loads(file_data.read())
-            except:
+            except Exception:
                 await sts.edit("FAILED")
                 return await client.send_message(LOG_CHANNEL, "UNABLE TO OPEN FILE.")
             os.remove(file)
             BATCH_FILES[batch_file_id] = msgs
+
+        seen_ids = set()  # ✅ prevent duplicate sends
         for msg in msgs:
+            fid = msg.get("file_id")
+            if not fid or fid in seen_ids:
+                continue
+            seen_ids.add(fid)
+
             title = msg.get("title")
             size = get_size(int(msg.get("size", 0)))
             f_caption = msg.get("caption", "")
@@ -136,17 +120,19 @@ async def _start_handler(client, message):
             try:
                 await client.send_cached_media(
                     chat_id=message.from_user.id,
-                    file_id=msg.get("file_id"),
+                    file_id=fid,
                     caption=f_caption,
                     protect_content=msg.get('protect', False),
+                    reply_markup=CHANNEL_BUTTONS,
                 )
             except FloodWait as e:
-                await asyncio.sleep(e.x)
+                await asyncio.sleep(e.value)
                 await client.send_cached_media(
                     chat_id=message.from_user.id,
-                    file_id=msg.get("file_id"),
+                    file_id=fid,
                     caption=f_caption,
                     protect_content=msg.get('protect', False),
+                    reply_markup=CHANNEL_BUTTONS,
                 )
             except Exception as e:
                 logger.warning(e, exc_info=True)
@@ -155,16 +141,23 @@ async def _start_handler(client, message):
         await sts.delete()
         return
 
+    # ── DSTORE mode ───────────────────────────────────────────────
     if data.split("-", 1)[0] == "DSTORE":
         sts = await message.reply("Please wait...")
         b_string = data.split("-", 1)[1]
         decoded = (base64.urlsafe_b64decode(b_string + "=" * (-len(b_string) % 4))).decode("ascii")
         try:
             f_msg_id, l_msg_id, f_chat_id, protect = decoded.split("_", 3)
-        except:
+        except Exception:
             f_msg_id, l_msg_id, f_chat_id = decoded.split("_", 2)
             protect = "/pbatch" if PROTECT_CONTENT else "batch"
+
+        seen_msg_ids = set()  # ✅ prevent duplicate sends
         async for msg in client.iter_messages(int(f_chat_id), int(l_msg_id), int(f_msg_id)):
+            if msg.id in seen_msg_ids:
+                continue
+            seen_msg_ids.add(msg.id)
+
             if msg.media:
                 media = getattr(msg, msg.media.value)
                 if BATCH_FILE_CAPTION:
@@ -181,10 +174,10 @@ async def _start_handler(client, message):
                     file_name = getattr(media, 'file_name', '')
                     f_caption = getattr(msg, 'caption', file_name)
                 try:
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
+                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=CHANNEL_BUTTONS)
                 except FloodWait as e:
-                    await asyncio.sleep(e.x)
-                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False)
+                    await asyncio.sleep(e.value)
+                    await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=CHANNEL_BUTTONS)
                 except Exception as e:
                     logger.exception(e)
                     continue
@@ -194,7 +187,7 @@ async def _start_handler(client, message):
                 try:
                     await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
                 except FloodWait as e:
-                    await asyncio.sleep(e.x)
+                    await asyncio.sleep(e.value)
                     await msg.copy(message.chat.id, protect_content=True if protect == "/pbatch" else False)
                 except Exception as e:
                     logger.exception(e)
@@ -202,6 +195,7 @@ async def _start_handler(client, message):
             await asyncio.sleep(1)
         return await sts.delete()
 
+    # ── Single file mode ──────────────────────────────────────────
     if "_" in data:
         pre, file_id = data.split("_", 1)
     else:
@@ -211,41 +205,42 @@ async def _start_handler(client, message):
     files_ = await get_file_details(file_id)
 
     if not files_:
+        # Try decoding as base64 file link
         try:
             decoded_data = (base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")
             pre, file_id = decoded_data.split("_", 1)
-        except Exception as e:
-            logger.exception(e)
-            return await message.reply('❌ File not found or link expired. Please search again.')
-        # Build caption before sending so edit_caption (which fails on protected content) isn't needed
-        f_caption = ""
-        if CUSTOM_FILE_CAPTION:
-            try:
-                f_caption = CUSTOM_FILE_CAPTION.format(file_name='', file_size='', file_caption='')
-            except Exception:
-                pass
-        try:
-            await client.send_cached_media(
+            msg = await client.send_cached_media(
                 chat_id=message.from_user.id,
                 file_id=file_id,
-                caption=f_caption,
                 protect_content=True,
                 reply_markup=CHANNEL_BUTTONS,
             )
-        except Exception as e:
-            logger.exception(e)
-            return await message.reply('❌ File not found or link expired. Please search again.')
-        # Log separately
-        try:
+            filetype = msg.media
+            file = getattr(msg, filetype.value)
+            title = file.file_name
+            size = get_size(file.file_size)
+            f_caption = f"<code>{title}</code>"
+            if CUSTOM_FILE_CAPTION:
+                try:
+                    f_caption = CUSTOM_FILE_CAPTION.format(
+                        file_name='' if title is None else title,
+                        file_size='' if size is None else size,
+                        file_caption=''
+                    )
+                except Exception:
+                    pass
+            await msg.edit_caption(f_caption)
             await client.send_message(
                 LOG_CHANNEL,
                 f"#FILE_SENT\n"
                 f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
                 f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
-                f"📄 **File:** `{file_id}`"
+                f"📄 **File:** `{title}`\n"
+                f"📦 **Size:** {size}"
             )
         except Exception as e:
-            logger.warning(f"LOG_CHANNEL send failed: {e}")
+            logger.exception(e)
+            await message.reply('❌ File not found or link expired. Please search again.')
         return
 
     files = files_[0]
@@ -272,8 +267,16 @@ async def _start_handler(client, message):
             protect_content=True,
             reply_markup=CHANNEL_BUTTONS,
         )
+        await client.send_message(
+            LOG_CHANNEL,
+            f"#FILE_SENT\n"
+            f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
+            f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
+            f"📄 **File:** `{title}`\n"
+            f"📦 **Size:** {size}"
+        )
     except FloodWait as e:
-        await asyncio.sleep(e.x)
+        await asyncio.sleep(e.value)
         await client.send_cached_media(
             chat_id=message.from_user.id,
             file_id=file_id,
@@ -284,19 +287,6 @@ async def _start_handler(client, message):
     except Exception as e:
         logger.exception(e)
         await message.reply('❌ Failed to send file. Please try again.')
-        return
-    # Log separately so a log failure never affects the user
-    try:
-        await client.send_message(
-            LOG_CHANNEL,
-            f"#FILE_SENT\n"
-            f"🤖 **Bot:** @{temp.U_NAME} (`{temp.B_NAME}`)\n"
-            f"👤 **User:** {message.from_user.mention} [`{message.from_user.id}`]\n"
-            f"📄 **File:** `{title}`\n"
-            f"📦 **Size:** {size}"
-        )
-    except Exception as e:
-        logger.warning(f"LOG_CHANNEL send failed: {e}")
 
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
@@ -405,7 +395,7 @@ async def settings(client, message):
             try:
                 chat = await client.get_chat(grpid)
                 title = chat.title
-            except:
+            except Exception:
                 await message.reply_text("Make sure I'm present in your group!!", quote=True)
                 return
         else:
@@ -475,7 +465,7 @@ async def save_template(client, message):
             try:
                 chat = await client.get_chat(grpid)
                 title = chat.title
-            except:
+            except Exception:
                 await message.reply_text("Make sure I'm present in your group!!", quote=True)
                 return
         else:
